@@ -7,6 +7,7 @@ let schemaJson = parseJson("{
   \"properties\": {
     \"name\": { \"type\": \"string\" },
     \"age\": { \"type\": \"number\" },
+    \"status\": { \"type\": \"string\", \"enum\": [\"active\", \"inactive\", \"pending\"] },
     \"tags\": {
       \"type\": \"array\",
       \"items\": { \"type\": \"string\" }
@@ -15,8 +16,8 @@ let schemaJson = parseJson("{
 }")
 let schema = parseSchema(schemaJson)
 
-let validData = parseJson("{\"name\": \"Alice\", \"age\": 30, \"tags\": [\"nim\", \"coding\"]}")
-let invalidData = parseJson("{\"name\": \"Bob\", \"age\": \"thirty\", \"tags\": [\"rust\"]}")
+let validData = parseJson("{\"name\": \"Alice\", \"age\": 30, \"status\": \"active\", \"tags\": [\"nim\", \"coding\"]}")
+let invalidData = parseJson("{\"name\": \"Bob\", \"age\": \"thirty\", \"status\": \"unknown\", \"tags\": [\"rust\"]}")
 
 let res1 = validate(validData, schema)
  echo "Valid data: ", res1.isValid # true

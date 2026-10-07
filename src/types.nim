@@ -9,14 +9,19 @@ type
     of SString:
       minLength: Option[int]
       maxLength: Option[int]
+      enumValues: Option[seq[string]]
     of SNumber:
       minVal: Option[float]
       maxVal: Option[float]
-    of SBoolean: discard
+      enumValues: Option[seq[float]]
+    of SBoolean: 
+      enumValues: Option[seq[bool]]
     of SObject: 
       properties: Table[string, SchemaValue]
       required: seq[string]
-    of SArray: items: SchemaValue
+    of SArray: 
+      items: SchemaValue
+      enumValues: Option[seq[JsonNode]]
 
   ValidationResult =
     object

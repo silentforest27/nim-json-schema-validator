@@ -10,6 +10,9 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
           return ValidationResult(isValid: false, error: "String length " & $val.len & " is less than minimum " & $schema.minLength.get())
         if schema.maxLength.isSome and val.len > schema.maxLength.get():
           return ValidationResult(isValid: false, error: "String length " & $val.len & " is greater than maximum " & $schema.maxLength.get())
+        if schema.enumValues.isSome:
+          if val not in schema.enumValues.get():
+            return ValidationResult(isValid: false, error: "Value " & val & " is not in allowed enum")
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected string")
     of SNumber:
@@ -19,14 +22,25 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
           return ValidationResult(isValid: false, error: "Value " & $val & " is less than minimum " & $schema.minVal.get())
         if schema.maxVal.isSome and val > schema.maxVal.get():
           return ValidationResult(isValid: false, error: "Value " & $val & " is greater than maximum " & $schema.maxVal.get())
+        if schema.enumValues.isSome:
+          if val not in schema.enumValues.get():
+            return ValidationResult(isValid: false, error: "Value " & $val & " is not in allowed enum")
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected number")
     of SBoolean:
       if data.kind == JBool:
+        let val = data.getBool()
+        if schema.enumValues.isSome:
+          if val not in schema.enumValues.get():
+            return ValidationResult(isValid: false, error: "Value " & $val & " is not in allowed enum")
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected boolean")
     of SArray:
       if data.kind == JArray:
+        if schema.enumValues.isSome:
+          # Simple structural equality check for arrays in enum
+          if data not in schema.enumValues.get():
+            return ValidationResult(isValid: false, error: "Array value is not in allowed enum")
         for item in data:
           let res = validate(item, schema.items)
           if not res.isValid: return res
@@ -48,12 +62,17 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected object")
 
+proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
+  if node.kind == JArray:
+    return some(node)
+  raise newException(ValueError, "'enum' must be an array")
+
 proc parseSchema(node: JsonNode): SchemaValue =
   if node.kind == JString:
     case node.getStr()
-    of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int))
-    of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float))
-    of "boolean": return SchemaValue(kind: SBoolean)
+    of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int), enumValues: none(seq[string]))
+    of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float), enumValues: none(seq[float]))
+    of "boolean": return SchemaValue(kind: SBoolean, enumValues: none(seq[bool]))
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   
   elif node.kind == JObject:
@@ -65,23 +84,52 @@ proc parseSchema(node: JsonNode): SchemaValue =
         of "string":
           var minL = none(int)
           var maxL = none(int)
+          var enumV = none(seq[string])
           if node.hasKey("minLength") and node["minLength"].kind == JInt:
             minL = some(node["minLength"].getInt())
           if node.hasKey("maxLength") and node["maxLength"].kind == JInt:
             maxL = some(node["maxLength"].getInt())
-          return SchemaValue(kind: SString, minLength: minL, maxLength: maxL)
+          if node.hasKey("enum"):
+            let enumNodes = parseEnum(node["enum"], SString).get()
+            var values: seq[string] = @[]
+            for e in enumNodes:
+              if e.kind == JString: values.add(e.getStr())
+              else: raise newException(ValueError, "Enum values for string type must be strings")
+            enumV = some(values)
+          return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV)
         of "number":
           var minV = none(float)
           var maxV = none(float)
+          var enumV = none(seq[float])
           if node.hasKey("minimum") and node["minimum"].kind == JFloat:
             minV = some(node["minimum"].getFloat())
           if node.hasKey("maximum") and node["maximum"].kind == JFloat:
             maxV = some(node["maximum"].getFloat())
-          return SchemaValue(kind: SNumber, minVal: minV, maxVal: maxV)
-        of "boolean": return SchemaValue(kind: SBoolean)
+          if node.hasKey("enum"):
+            let enumNodes = parseEnum(node["enum"], SNumber).get()
+            var values: seq[float] = @[]
+            for e in enumNodes:
+              if e.kind == JFloat: values.add(e.getFloat())
+              elif e.kind == JInt: values.add(e.getInt().float)
+              else: raise newException(ValueError, "Enum values for number type must be numbers")
+            enumV = some(values)
+          return SchemaValue(kind: SNumber, minVal: minV, maxVal: maxV, enumValues: enumV)
+        of "boolean": 
+          var enumV = none(seq[bool])
+          if node.hasKey("enum"):
+            let enumNodes = parseEnum(node["enum"], SBoolean).get()
+            var values: seq[bool] = @[]
+            for e in enumNodes:
+              if e.kind == JBool: values.add(e.getBool())
+              else: raise newException(ValueError, "Enum values for boolean type must be booleans")
+            enumV = some(values)
+          return SchemaValue(kind: SBoolean, enumValues: enumV)
         of "array":
           if node.hasKey("items"):
-            return SchemaValue(kind: SArray, items: parseSchema(node["items"]))
+            var enumV = none(seq[JsonNode])
+            if node.hasKey("enum"):
+              enumV = parseEnum(node["enum"], SArray)
+            return SchemaValue(kind: SArray, items: parseSchema(node["items"]), enumValues: enumV)
           raise newException(ValueError, "Array schema must define 'items'")
         of "object":
           var props = initTable[string, SchemaValue]()
