@@ -1,4 +1,4 @@
-import std/[json, tables]
+import std/[json, tables, options]
 import types
 
 proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
@@ -9,6 +9,11 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
       return ValidationResult(isValid: false, error: "Expected string")
     of SNumber:
       if data.kind == JFloat:
+        let val = data.getFloat()
+        if schema.minVal.isSome and val < schema.minVal.get():
+          return ValidationResult(isValid: false, error: "Value " & $val & " is less than minimum " & $schema.minVal.get())
+        if schema.maxVal.isSome and val > schema.maxVal.get():
+          return ValidationResult(isValid: false, error: "Value " & $val & " is greater than maximum " & $schema.maxVal.get())
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected number")
     of SBoolean:
@@ -42,7 +47,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
   if node.kind == JString:
     case node.getStr()
     of "string": return SchemaValue(kind: SString)
-    of "number": return SchemaValue(kind: SNumber)
+    of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float))
     of "boolean": return SchemaValue(kind: SBoolean)
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   
@@ -53,7 +58,14 @@ proc parseSchema(node: JsonNode): SchemaValue =
         let typeStr = typeNode.getStr()
         case typeStr
         of "string": return SchemaValue(kind: SString)
-        of "number": return SchemaValue(kind: SNumber)
+        of "number":
+          var minV = none(float)
+          var maxV = none(float)
+          if node.hasKey("minimum") and node["minimum"].kind == JFloat:
+            minV = some(node["minimum"].getFloat())
+          if node.hasKey("maximum") and node["maximum"].kind == JFloat:
+            maxV = some(node["maximum"].getFloat())
+          return SchemaValue(kind: SNumber, minVal: minV, maxVal: maxV)
         of "boolean": return SchemaValue(kind: SBoolean)
         of "array":
           if node.hasKey("items"):
