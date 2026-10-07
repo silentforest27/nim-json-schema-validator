@@ -5,6 +5,11 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
   case schema.kind
     of SString:
       if data.kind == JString:
+        let val = data.getStr()
+        if schema.minLength.isSome and val.len < schema.minLength.get():
+          return ValidationResult(isValid: false, error: "String length " & $val.len & " is less than minimum " & $schema.minLength.get())
+        if schema.maxLength.isSome and val.len > schema.maxLength.get():
+          return ValidationResult(isValid: false, error: "String length " & $val.len & " is greater than maximum " & $schema.maxLength.get())
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected string")
     of SNumber:
@@ -46,7 +51,7 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
 proc parseSchema(node: JsonNode): SchemaValue =
   if node.kind == JString:
     case node.getStr()
-    of "string": return SchemaValue(kind: SString)
+    of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int))
     of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float))
     of "boolean": return SchemaValue(kind: SBoolean)
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
@@ -57,7 +62,14 @@ proc parseSchema(node: JsonNode): SchemaValue =
       if typeNode.kind == JString:
         let typeStr = typeNode.getStr()
         case typeStr
-        of "string": return SchemaValue(kind: SString)
+        of "string":
+          var minL = none(int)
+          var maxL = none(int)
+          if node.hasKey("minLength") and node["minLength"].kind == JInt:
+            minL = some(node["minLength"].getInt())
+          if node.hasKey("maxLength") and node["maxLength"].kind == JInt:
+            maxL = some(node["maxLength"].getInt())
+          return SchemaValue(kind: SString, minLength: minL, maxLength: maxL)
         of "number":
           var minV = none(float)
           var maxV = none(float)

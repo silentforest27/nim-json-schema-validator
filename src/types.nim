@@ -6,10 +6,13 @@ type
 
   SchemaValue =
     case kind: SchemaKind
-    of SString, SBoolean: discard
+    of SString:
+      minLength: Option[int]
+      maxLength: Option[int]
     of SNumber:
       minVal: Option[float]
       maxVal: Option[float]
+    of SBoolean: discard
     of SObject: 
       properties: Table[string, SchemaValue]
       required: seq[string]
