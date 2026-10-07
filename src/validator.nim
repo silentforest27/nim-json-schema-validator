@@ -1,4 +1,4 @@
-import std/[json, tables, options]
+import std/[json, tables, options, re]
 import types
 
 proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
@@ -13,6 +13,9 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
         if schema.enumValues.isSome:
           if val not in schema.enumValues.get():
             return ValidationResult(isValid: false, error: "Value " & val & " is not in allowed enum")
+        if schema.pattern.isSome:
+          if not val.contains(pcre(schema.pattern.get())):
+            return ValidationResult(isValid: false, error: "Value " & val & " does not match pattern " & schema.pattern.get())
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected string")
     of SNumber:
@@ -83,7 +86,7 @@ proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
 proc parseSchema(node: JsonNode): SchemaValue =
   if node.kind == JString:
     case node.getStr()
-    of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int), enumValues: none(seq[string]))
+    of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int), enumValues: none(seq[string]), pattern: none(string))
     of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float), enumValues: none(seq[float]))
     of "boolean": return SchemaValue(kind: SBoolean, enumValues: none(seq[bool]))
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
@@ -98,6 +101,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
           var minL = none(int)
           var maxL = none(int)
           var enumV = none(seq[string])
+          var pat = none(string)
           if node.hasKey("minLength") and node["minLength"].kind == JInt:
             minL = some(node["minLength"].getInt())
           if node.hasKey("maxLength") and node["maxLength"].kind == JInt:
@@ -109,7 +113,9 @@ proc parseSchema(node: JsonNode): SchemaValue =
               if e.kind == JString: values.add(e.getStr())
               else: raise newException(ValueError, "Enum values for string type must be strings")
             enumV = some(values)
-          return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV)
+          if node.hasKey("pattern") and node["pattern"].kind == JString:
+            pat = some(node["pattern"].getStr())
+          return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV, pattern: pat)
         of "number":
           var minV = none(float)
           var maxV = none(float)

@@ -10,6 +10,7 @@ type
       minLength: Option[int]
       maxLength: Option[int]
       enumValues: Option[seq[string]]
+      pattern: Option[string]
     of SNumber:
       minVal: Option[float]
       maxVal: Option[float]
