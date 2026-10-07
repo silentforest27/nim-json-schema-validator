@@ -1,7 +1,18 @@
 import std/json
 import src/types, src/validator
 
-let schemaJson = parseJson("{\"name\": \"string\", \"age\": \"number\", \"tags\": [\"string\"]}")
+# Using the new explicit 'type' format
+let schemaJson = parseJson("{
+  \"type\": \"object\",
+  \"properties\": {
+    \"name\": { \"type\": \"string\" },
+    \"age\": { \"type\": \"number\" },
+    \"tags\": {
+      \"type\": \"array\",
+      \"items\": { \"type\": \"string\" }
+    }
+  }
+}")
 let schema = parseSchema(schemaJson)
 
 let validData = parseJson("{\"name\": \"Alice\", \"age\": 30, \"tags\": [\"nim\", \"coding\"]}")
@@ -11,4 +22,4 @@ let res1 = validate(validData, schema)
  echo "Valid data: ", res1.isValid # true
 
 let res2 = validate(invalidData, schema)
- echo "Invalid data: ", res2.isValid, " Error: ", res2.error # false, Expected number
+ echo "Invalid data: ", res2.isValid, " Error: ", res2.error # false, Property age: Expected number
