@@ -59,6 +59,13 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
             let res = validate(data[key], sVal)
             if not res.isValid:
               return ValidationResult(isValid: false, error: "Property " & key & ": " & res.error)
+
+        # Check additional properties
+        if schema.additionalProperties.isSome and schema.additionalProperties.get() == false:
+          for key in data.fields.keys:
+            if not schema.properties.hasKey(key):
+              return ValidationResult(isValid: false, error: "Additional property not allowed: " & key)
+
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected object")
 
@@ -134,6 +141,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
         of "object":
           var props = initTable[string, SchemaValue]()
           var reqs: seq[string] = @[]
+          var addProps = none(bool)
           
           if node.hasKey("properties"):
             let propsNode = node["properties"]
@@ -153,15 +161,22 @@ proc parseSchema(node: JsonNode): SchemaValue =
                   raise newException(ValueError, "'required' array must contain strings")
             else:
               raise newException(ValueError, "'required' must be an array")
+
+          if node.hasKey("additionalProperties"):
+            let apNode = node["additionalProperties"]
+            if apNode.kind == JBool:
+              addProps = some(apNode.getBool())
+            else:
+              raise newException(ValueError, "'additionalProperties' must be a boolean")
               
-          return SchemaValue(kind: SObject, properties: props, required: reqs)
+          return SchemaValue(kind: SObject, properties: props, required: reqs, additionalProperties: addProps)
         else: raise newException(ValueError, "Unknown type: " & typeStr)
 
     # Fallback to the basic heuristic
     var props = initTable[string, SchemaValue]()
     for key, val in node.fields:
       props[key] = parseSchema(val)
-    return SchemaValue(kind: SObject, properties: props, required: @[])
+    return SchemaValue(kind: SObject, properties: props, required: @[], additionalProperties: none(bool))
 
   elif node.kind == JArray:
     if node.len > 0:

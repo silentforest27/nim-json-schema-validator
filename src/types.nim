@@ -19,6 +19,7 @@ type
     of SObject: 
       properties: Table[string, SchemaValue]
       required: seq[string]
+      additionalProperties: Option[bool]
     of SArray: 
       items: SchemaValue
       enumValues: Option[seq[JsonNode]]
