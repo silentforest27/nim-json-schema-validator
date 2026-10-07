@@ -22,6 +22,8 @@ type
       additionalProperties: Option[bool]
     of SArray: 
       items: SchemaValue
+      minItems: Option[int]
+      maxItems: Option[int]
       enumValues: Option[seq[JsonNode]]
 
   ValidationResult =

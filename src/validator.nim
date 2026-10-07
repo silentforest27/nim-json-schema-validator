@@ -41,6 +41,12 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
           # Simple structural equality check for arrays in enum
           if data not in schema.enumValues.get():
             return ValidationResult(isValid: false, error: "Array value is not in allowed enum")
+        
+        if schema.minItems.isSome and data.len < schema.minItems.get():
+          return ValidationResult(isValid: false, error: "Array length " & $data.len & " is less than minimum " & $schema.minItems.get())
+        if schema.maxItems.isSome and data.len > schema.maxItems.get():
+          return ValidationResult(isValid: false, error: "Array length " & $data.len & " is greater than maximum " & $schema.maxItems.get())
+
         for item in data:
           let res = validate(item, schema.items)
           if not res.isValid: return res
@@ -133,10 +139,16 @@ proc parseSchema(node: JsonNode): SchemaValue =
           return SchemaValue(kind: SBoolean, enumValues: enumV)
         of "array":
           if node.hasKey("items"):
+            var minI = none(int)
+            var maxI = none(int)
             var enumV = none(seq[JsonNode])
+            if node.hasKey("minItems") and node["minItems"].kind == JInt:
+              minI = some(node["minItems"].getInt())
+            if node.hasKey("maxItems") and node["maxItems"].kind == JInt:
+              maxI = some(node["maxItems"].getInt())
             if node.hasKey("enum"):
               enumV = parseEnum(node["enum"], SArray)
-            return SchemaValue(kind: SArray, items: parseSchema(node["items"]), enumValues: enumV)
+            return SchemaValue(kind: SArray, items: parseSchema(node["items"]), minItems: minI, maxItems: maxI, enumValues: enumV)
           raise newException(ValueError, "Array schema must define 'items'")
         of "object":
           var props = initTable[string, SchemaValue]()
@@ -180,7 +192,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
 
   elif node.kind == JArray:
     if node.len > 0:
-      return SchemaValue(kind: SArray, items: parseSchema(node[0]))
+      return SchemaValue(kind: SArray, items: parseSchema(node[0]), minItems: none(int), maxItems: none(int), enumValues: none(seq[JsonNode]))
     raise newException(ValueError, "Empty array in schema definition")
 
   raise newException(ValueError, "Invalid schema node")
