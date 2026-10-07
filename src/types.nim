@@ -7,7 +7,9 @@ type
   SchemaValue =
     case kind: SchemaKind
     of SString, SNumber, SBoolean: discard
-    of SObject: properties: Table[string, SchemaValue]
+    of SObject: 
+      properties: Table[string, SchemaValue]
+      required: seq[string]
     of SArray: items: SchemaValue
 
   ValidationResult =

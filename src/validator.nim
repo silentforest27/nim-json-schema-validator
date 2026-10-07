@@ -24,13 +24,17 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
       return ValidationResult(isValid: false, error: "Expected array")
     of SObject:
       if data.kind == JObject:
+        # Check required properties first
+        for req in schema.required:
+          if not data.hasKey(req):
+            return ValidationResult(isValid: false, error: "Missing required property: " & req)
+        
+        # Validate existing properties
         for key, sVal in schema.properties:
-          if not data.hasKey(key):
-            # In a more advanced version, we could check a 'required' list
-            return ValidationResult(isValid: false, error: "Missing property: " & key)
-          let res = validate(data[key], sVal)
-          if not res.isValid:
-            return ValidationResult(isValid: false, error: "Property " & key & ": " & res.error)
+          if data.hasKey(key):
+            let res = validate(data[key], sVal)
+            if not res.isValid:
+              return ValidationResult(isValid: false, error: "Property " & key & ": " & res.error)
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected object")
 
@@ -43,7 +47,6 @@ proc parseSchema(node: JsonNode): SchemaValue =
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   
   elif node.kind == JObject:
-    # Support explicit "type" key
     if node.hasKey("type"):
       let typeNode = node["type"]
       if typeNode.kind == JString:
@@ -58,6 +61,8 @@ proc parseSchema(node: JsonNode): SchemaValue =
           raise newException(ValueError, "Array schema must define 'items'")
         of "object":
           var props = initTable[string, SchemaValue]()
+          var reqs: seq[string] = @[]
+          
           if node.hasKey("properties"):
             let propsNode = node["properties"]
             if propsNode.kind == JObject:
@@ -65,14 +70,26 @@ proc parseSchema(node: JsonNode): SchemaValue =
                 props[key] = parseSchema(val)
             else:
               raise newException(ValueError, "'properties' must be an object")
-          return SchemaValue(kind: SObject, properties: props)
+          
+          if node.hasKey("required"):
+            let reqsNode = node["required"]
+            if reqsNode.kind == JArray:
+              for item in reqsNode:
+                if item.kind == JString:
+                  reqs.add(item.getStr())
+                else:
+                  raise newException(ValueError, "'required' array must contain strings")
+            else:
+              raise newException(ValueError, "'required' must be an array")
+              
+          return SchemaValue(kind: SObject, properties: props, required: reqs)
         else: raise newException(ValueError, "Unknown type: " & typeStr)
 
-    # Fallback to the basic heuristic for backward compatibility
+    # Fallback to the basic heuristic
     var props = initTable[string, SchemaValue]()
     for key, val in node.fields:
       props[key] = parseSchema(val)
-    return SchemaValue(kind: SObject, properties: props)
+    return SchemaValue(kind: SObject, properties: props, required: @[])
 
   elif node.kind == JArray:
     if node.len > 0:
