@@ -2,7 +2,7 @@ import std/json
 
 type
   SchemaKind = enum
-    SString, SNumber, SInteger, SBoolean, SObject, SArray, SAnyOf, SAllOf
+    SString, SNumber, SInteger, SBoolean, SObject, SArray, SAnyOf, SAllOf, SOneOf
 
   SchemaValue =
     case kind: SchemaKind
@@ -42,6 +42,8 @@ type
     of SAnyOf:
       schemas: seq[SchemaValue]
     of SAllOf:
+      schemas: seq[SchemaValue]
+    of SOneOf:
       schemas: seq[SchemaValue]
 
   ValidationResult =

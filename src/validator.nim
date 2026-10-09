@@ -119,6 +119,14 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
         let res = validate(data, s)
         if not res.isValid: return res
       return ValidationResult(isValid: true)
+    of SOneOf:
+      var matches = 0
+      for s in schema.schemas:
+        if validate(data, s).isValid:
+          matches += 1
+      if matches == 1:
+        return ValidationResult(isValid: true)
+      return ValidationResult(isValid: false, error: "Value must match exactly one schema in oneOf, but matched " & $matches)
 
 proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
   if node.kind == JArray:
@@ -152,6 +160,15 @@ proc parseSchema(node: JsonNode): SchemaValue =
           schemas.add(parseSchema(s))
         return SchemaValue(kind: SAllOf, schemas: schemas)
       raise newException(ValueError, "'allOf' must be an array")
+
+    if node.hasKey("oneOf"):
+      let oneOfNode = node["oneOf"]
+      if oneOfNode.kind == JArray:
+        var schemas: seq[SchemaValue] = @[]
+        for s in oneOfNode:
+          schemas.add(parseSchema(s))
+        return SchemaValue(kind: SOneOf, schemas: schemas)
+      raise newException(ValueError, "'oneOf' must be an array")
 
     if node.hasKey("type"):
       let typeNode = node["type"]
