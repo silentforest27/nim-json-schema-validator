@@ -14,6 +14,8 @@ type
     of SNumber:
       minVal: Option[float]
       maxVal: Option[float]
+      exclusiveMin: Option[float]
+      exclusiveMax: Option[float]
       multipleOf: Option[float]
       enumValues: Option[seq[float]]
     of SBoolean: 
