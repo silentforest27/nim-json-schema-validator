@@ -1,4 +1,4 @@
-import std/[json, tables, options, re]
+import std/[json, tables, options, re, math]
 import types
 
 proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
@@ -98,6 +98,18 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
 
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected object")
+    of SAnyOf:
+      var errors: seq[string] = @[]
+      for s in schema.schemas:
+        let res = validate(data, s)
+        if res.isValid: return ValidationResult(isValid: true)
+        errors.add(res.error)
+      return ValidationResult(isValid: false, error: "Value must match at least one schema in anyOf. Errors: " & errors.join(", "))
+    of SAllOf:
+      for s in schema.schemas:
+        let res = validate(data, s)
+        if not res.isValid: return res
+      return ValidationResult(isValid: true)
 
 proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
   if node.kind == JArray:
@@ -114,6 +126,24 @@ proc parseSchema(node: JsonNode): SchemaValue =
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   
   elif node.kind == JObject:
+    if node.hasKey("anyOf"):
+      let anyOfNode = node["anyOf"]
+      if anyOfNode.kind == JArray:
+        var schemas: seq[SchemaValue] = @[]
+        for s in anyOfNode:
+          schemas.add(parseSchema(s))
+        return SchemaValue(kind: SAnyOf, schemas: schemas)
+      raise newException(ValueError, "'anyOf' must be an array")
+    
+    if node.hasKey("allOf"):
+      let allOfNode = node["allOf"]
+      if allOfNode.kind == JArray:
+        var schemas: seq[SchemaValue] = @[]
+        for s in allOfNode:
+          schemas.add(parseSchema(s))
+        return SchemaValue(kind: SAllOf, schemas: schemas)
+      raise newException(ValueError, "'allOf' must be an array")
+
     if node.hasKey("type"):
       let typeNode = node["type"]
       if typeNode.kind == JString:
