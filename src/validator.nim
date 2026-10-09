@@ -127,6 +127,11 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
       if matches == 1:
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Value must match exactly one schema in oneOf, but matched " & $matches)
+    of SNot:
+      let res = validate(data, schema.schema)
+      if not res.isValid:
+        return ValidationResult(isValid: true)
+      return ValidationResult(isValid: false, error: "Value must not match the negated schema")
 
 proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
   if node.kind == JArray:
@@ -143,6 +148,10 @@ proc parseSchema(node: JsonNode): SchemaValue =
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   
   elif node.kind == JObject:
+    if node.hasKey("not"):
+      let notNode = node["not"]
+      return SchemaValue(kind: SNot, schema: parseSchema(notNode))
+
     if node.hasKey("anyOf"):
       let anyOfNode = node["anyOf"]
       if anyOfNode.kind == JArray:
