@@ -29,6 +29,7 @@ type
       enumValues: Option[seq[bool]]
     of SObject: 
       properties: Table[string, SchemaValue]
+      patternProperties: Table[string, SchemaValue]
       required: seq[string]
       additionalProperties: Option[bool]
       minProperties: Option[int]

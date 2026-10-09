@@ -90,10 +90,26 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
             if not res.isValid:
               return ValidationResult(isValid: false, error: "Property " & key & ": " & res.error)
 
+        # Validate pattern properties
+        for pattern, sVal in schema.patternProperties:
+          for key, val in data.fields:
+            if key.contains(pcre(pattern)):
+              let res = validate(val, sVal)
+              if not res.isValid:
+                return ValidationResult(isValid: false, error: "Property " & key & " (matched by " & pattern & "): " & res.error)
+
         # Check additional properties
         if schema.additionalProperties.isSome and schema.additionalProperties.get() == false:
           for key in data.fields.keys:
-            if not schema.properties.hasKey(key):
+            var matched = false
+            if schema.properties.hasKey(key):
+              matched = true
+            else:
+              for pattern in schema.patternProperties.keys:
+                if key.contains(pcre(pattern)):
+                  matched = true
+                  break
+            if not matched:
               return ValidationResult(isValid: false, error: "Additional property not allowed: " & key)
 
         # Check property dependencies
@@ -270,6 +286,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
           raise newException(ValueError, "Array schema must define 'items'")
         of "object":
           var props = initTable[string, SchemaValue]()
+          var patProps = initTable[string, SchemaValue]()
           var reqs: seq[string] = @[]
           var addProps = none(bool)
           var minP = none(int)
@@ -284,6 +301,14 @@ proc parseSchema(node: JsonNode): SchemaValue =
             else:
               raise newException(ValueError, "'properties' must be an object")
           
+          if node.hasKey("patternProperties"):
+            let patPropsNode = node["patternProperties"]
+            if patPropsNode.kind == JObject:
+              for key, val in patPropsNode.fields:
+                patProps[key] = parseSchema(val)
+            else:
+              raise newException(ValueError, "'patternProperties' must be an object")
+
           if node.hasKey("required"):
             let reqsNode = node["required"]
             if reqsNode.kind == JArray:
@@ -324,14 +349,14 @@ proc parseSchema(node: JsonNode): SchemaValue =
             else:
               raise newException(ValueError, "'dependencies' must be an object")
               
-          return SchemaValue(kind: SObject, properties: props, required: reqs, additionalProperties: addProps, minProperties: minP, maxProperties: maxP, dependencies: deps)
+          return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: reqs, additionalProperties: addProps, minProperties: minP, maxProperties: maxP, dependencies: deps)
         else: raise newException(ValueError, "Unknown type: " & typeStr)
 
     # Fallback to the basic heuristic
     var props = initTable[string, SchemaValue]()
     for key, val in node.fields:
       props[key] = parseSchema(val)
-    return SchemaValue(kind: SObject, properties: props, required: @[], additionalProperties: none(bool), minProperties: none(int), maxProperties: none(int), dependencies: none(Table[string, seq[string]]))
+    return SchemaValue(kind: SObject, properties: props, patternProperties: initTable[string, SchemaValue](), required: @[], additionalProperties: none(bool), minProperties: none(int), maxProperties: none(int), dependencies: none(Table[string, seq[string]]))
 
   elif node.kind == JArray:
     if node.len > 0:
