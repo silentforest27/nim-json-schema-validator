@@ -22,6 +22,8 @@ type
       properties: Table[string, SchemaValue]
       required: seq[string]
       additionalProperties: Option[bool]
+      minProperties: Option[int]
+      maxProperties: Option[int]
     of SArray: 
       items: SchemaValue
       minItems: Option[int]

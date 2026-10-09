@@ -62,6 +62,12 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
       return ValidationResult(isValid: false, error: "Expected array")
     of SObject:
       if data.kind == JObject:
+        let propCount = data.fields.len
+        if schema.minProperties.isSome and propCount < schema.minProperties.get():
+          return ValidationResult(isValid: false, error: "Object has " & $propCount & " properties, which is less than minimum " & $schema.minProperties.get())
+        if schema.maxProperties.isSome and propCount > schema.maxProperties.get():
+          return ValidationResult(isValid: false, error: "Object has " & $propCount & " properties, which is greater than maximum " & $schema.maxProperties.get())
+
         # Check required properties first
         for req in schema.required:
           if not data.hasKey(req):
@@ -177,6 +183,8 @@ proc parseSchema(node: JsonNode): SchemaValue =
           var props = initTable[string, SchemaValue]()
           var reqs: seq[string] = @[]
           var addProps = none(bool)
+          var minP = none(int)
+          var maxP = none(int)
           
           if node.hasKey("properties"):
             let propsNode = node["properties"]
@@ -203,15 +211,20 @@ proc parseSchema(node: JsonNode): SchemaValue =
               addProps = some(apNode.getBool())
             else:
               raise newException(ValueError, "'additionalProperties' must be a boolean")
+
+          if node.hasKey("minProperties") and node["minProperties"].kind == JInt:
+            minP = some(node["minProperties"].getInt())
+          if node.hasKey("maxProperties") and node["maxProperties"].kind == JInt:
+            maxP = some(node["maxProperties"].getInt())
               
-          return SchemaValue(kind: SObject, properties: props, required: reqs, additionalProperties: addProps)
+          return SchemaValue(kind: SObject, properties: props, required: reqs, additionalProperties: addProps, minProperties: minP, maxProperties: maxP)
         else: raise newException(ValueError, "Unknown type: " & typeStr)
 
     # Fallback to the basic heuristic
     var props = initTable[string, SchemaValue]()
     for key, val in node.fields:
       props[key] = parseSchema(val)
-    return SchemaValue(kind: SObject, properties: props, required: @[], additionalProperties: none(bool))
+    return SchemaValue(kind: SObject, properties: props, required: @[], additionalProperties: none(bool), minProperties: none(int), maxProperties: none(int))
 
   elif node.kind == JArray:
     if node.len > 0:
