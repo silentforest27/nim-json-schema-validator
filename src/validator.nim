@@ -19,7 +19,7 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected string")
     of SNumber:
-      if data.kind == JFloat:
+      if data.kind == JFloat or data.kind == JInt:
         let val = data.getFloat()
         if schema.minVal.isSome and val < schema.minVal.get():
           return ValidationResult(isValid: false, error: "Value " & $val & " is less than minimum " & $schema.minVal.get())
@@ -120,10 +120,16 @@ proc parseSchema(node: JsonNode): SchemaValue =
           var minV = none(float)
           var maxV = none(float)
           var enumV = none(seq[float])
-          if node.hasKey("minimum") and node["minimum"].kind == JFloat:
-            minV = some(node["minimum"].getFloat())
-          if node.hasKey("maximum") and node["maximum"].kind == JFloat:
-            maxV = some(node["maximum"].getFloat())
+          if node.hasKey("minimum"):
+            let minNode = node["minimum"]
+            if minNode.kind == JFloat: minV = some(minNode.getFloat())
+            elif minNode.kind == JInt: minV = some(minNode.getInt().float)
+            else: raise newException(ValueError, "'minimum' must be a number")
+          if node.hasKey("maximum"):
+            let maxNode = node["maximum"]
+            if maxNode.kind == JFloat: maxV = some(maxNode.getFloat())
+            elif maxNode.kind == JInt: maxV = some(maxNode.getInt().float)
+            else: raise newException(ValueError, "'maximum' must be a number")
           if node.hasKey("enum"):
             let enumNodes = parseEnum(node["enum"], SNumber).get()
             var values: seq[float] = @[]
