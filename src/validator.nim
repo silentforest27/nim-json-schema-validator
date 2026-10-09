@@ -96,6 +96,15 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
             if not schema.properties.hasKey(key):
               return ValidationResult(isValid: false, error: "Additional property not allowed: " & key)
 
+        # Check property dependencies
+        if schema.dependencies.isSome:
+          let deps = schema.dependencies.get()
+          for trigger, targets in deps:
+            if data.hasKey(trigger):
+              for target in targets:
+                if not data.hasKey(target):
+                  return ValidationResult(isValid: false, error: "Property " & trigger & " depends on " & target & " which is missing")
+
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected object")
     of SAnyOf:
@@ -239,6 +248,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
           var addProps = none(bool)
           var minP = none(int)
           var maxP = none(int)
+          var deps = none(Table[string, seq[string]])
           
           if node.hasKey("properties"):
             let propsNode = node["properties"]
@@ -270,15 +280,32 @@ proc parseSchema(node: JsonNode): SchemaValue =
             minP = some(node["minProperties"].getInt())
           if node.hasKey("maxProperties") and node["maxProperties"].kind == JInt:
             maxP = some(node["maxProperties"].getInt())
+
+          if node.hasKey("dependencies"):
+            let depsNode = node["dependencies"]
+            if depsNode.kind == JObject:
+              var depsTable = initTable[string, seq[string]]()
+              for key, val in depsNode.fields:
+                if val.kind == JArray:
+                  var targets: seq[string] = @[]
+                  for target in val:
+                    if target.kind == JString: targets.add(target.getStr())
+                    else: raise newException(ValueError, "Dependency targets must be strings")
+                  depsTable[key] = targets
+                else:
+                  raise newException(ValueError, "Dependency value must be an array of strings")
+              deps = some(depsTable)
+            else:
+              raise newException(ValueError, "'dependencies' must be an object")
               
-          return SchemaValue(kind: SObject, properties: props, required: reqs, additionalProperties: addProps, minProperties: minP, maxProperties: maxP)
+          return SchemaValue(kind: SObject, properties: props, required: reqs, additionalProperties: addProps, minProperties: minP, maxProperties: maxP, dependencies: deps)
         else: raise newException(ValueError, "Unknown type: " & typeStr)
 
     # Fallback to the basic heuristic
     var props = initTable[string, SchemaValue]()
     for key, val in node.fields:
       props[key] = parseSchema(val)
-    return SchemaValue(kind: SObject, properties: props, required: @[], additionalProperties: none(bool), minProperties: none(int), maxProperties: none(int))
+    return SchemaValue(kind: SObject, properties: props, required: @[], additionalProperties: none(bool), minProperties: none(int), maxProperties: none(int), dependencies: none(Table[string, seq[string]]))
 
   elif node.kind == JArray:
     if node.len > 0:

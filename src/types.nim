@@ -33,6 +33,7 @@ type
       additionalProperties: Option[bool]
       minProperties: Option[int]
       maxProperties: Option[int]
+      dependencies: Option[Table[string, seq[string]]]
     of SArray: 
       items: SchemaValue
       minItems: Option[int]
