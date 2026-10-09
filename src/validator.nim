@@ -18,8 +18,14 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
             return ValidationResult(isValid: false, error: "Value " & val & " does not match pattern " & schema.pattern.get())
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected string")
-    of SNumber:
+    of SNumber, SInteger:
       if data.kind == JFloat or data.kind == JInt:
+        if schema.kind == SInteger and data.kind == JFloat:
+          # Check if float is actually an integer
+          let val = data.getFloat()
+          if val != floor(val):
+            return ValidationResult(isValid: false, error: "Expected integer")
+
         let val = data.getFloat()
         if schema.minVal.isSome and val < schema.minVal.get():
           return ValidationResult(isValid: false, error: "Value " & $val & " is less than minimum " & $schema.minVal.get())
@@ -38,7 +44,7 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
           if val not in schema.enumValues.get():
             return ValidationResult(isValid: false, error: "Value " & $val & " is not in allowed enum")
         return ValidationResult(isValid: true)
-      return ValidationResult(isValid: false, error: "Expected number")
+      return ValidationResult(isValid: false, error: if schema.kind == SInteger then "Expected integer" else "Expected number")
     of SBoolean:
       if data.kind == JBool:
         let val = data.getBool()
@@ -103,6 +109,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
     case node.getStr()
     of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int), enumValues: none(seq[string]), pattern: none(string))
     of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]))
+    of "integer": return SchemaValue(kind: SInteger, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]))
     of "boolean": return SchemaValue(kind: SBoolean, enumValues: none(seq[bool]))
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   
@@ -131,7 +138,8 @@ proc parseSchema(node: JsonNode): SchemaValue =
           if node.hasKey("pattern") and node["pattern"].kind == JString:
             pat = some(node["pattern"].getStr())
           return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV, pattern: pat)
-        of "number":
+        of "number", "integer":
+          let kind = if typeStr == "number" then SNumber else SInteger
           var minV = none(float)
           var maxV = none(float)
           var exMinV = none(float)
@@ -164,14 +172,14 @@ proc parseSchema(node: JsonNode): SchemaValue =
             elif multNode.kind == JInt: multV = some(multNode.getInt().float)
             else: raise newException(ValueError, "'multipleOf' must be a number")
           if node.hasKey("enum"):
-            let enumNodes = parseEnum(node["enum"], SNumber).get()
+            let enumNodes = parseEnum(node["enum"], kind).get()
             var values: seq[float] = @[]
             for e in enumNodes:
               if e.kind == JFloat: values.add(e.getFloat())
               elif e.kind == JInt: values.add(e.getInt().float)
-              else: raise newException(ValueError, "Enum values for number type must be numbers")
+              else: raise newException(ValueError, "Enum values for number/integer type must be numbers")
             enumV = some(values)
-          return SchemaValue(kind: SNumber, minVal: minV, maxVal: maxV, exclusiveMin: exMinV, exclusiveMax: exMaxV, multipleOf: multV, enumValues: enumV)
+          return SchemaValue(kind: kind, minVal: minV, maxVal: maxV, exclusiveMin: exMinV, exclusiveMax: exMaxV, multipleOf: multV, enumValues: enumV)
         of "boolean": 
           var enumV = none(seq[bool])
           if node.hasKey("enum"):

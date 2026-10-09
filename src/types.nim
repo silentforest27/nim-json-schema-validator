@@ -2,7 +2,7 @@ import std/json
 
 type
   SchemaKind = enum
-    SString, SNumber, SBoolean, SObject, SArray
+    SString, SNumber, SInteger, SBoolean, SObject, SArray
 
   SchemaValue =
     case kind: SchemaKind
@@ -12,6 +12,13 @@ type
       enumValues: Option[seq[string]]
       pattern: Option[string]
     of SNumber:
+      minVal: Option[float]
+      maxVal: Option[float]
+      exclusiveMin: Option[float]
+      exclusiveMax: Option[float]
+      multipleOf: Option[float]
+      enumValues: Option[seq[float]]
+    of SInteger:
       minVal: Option[float]
       maxVal: Option[float]
       exclusiveMin: Option[float]
