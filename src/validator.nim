@@ -25,6 +25,11 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
           return ValidationResult(isValid: false, error: "Value " & $val & " is less than minimum " & $schema.minVal.get())
         if schema.maxVal.isSome and val > schema.maxVal.get():
           return ValidationResult(isValid: false, error: "Value " & $val & " is greater than maximum " & $schema.maxVal.get())
+        if schema.multipleOf.isSome:
+          let modVal = schema.multipleOf.get()
+          # Use fmod for float modulo check
+          if abs(fmod(val, modVal)) > 1e-9 and abs(fmod(val, modVal) - modVal) > 1e-9:
+            return ValidationResult(isValid: false, error: "Value " & $val & " is not a multiple of " & $modVal)
         if schema.enumValues.isSome:
           if val not in schema.enumValues.get():
             return ValidationResult(isValid: false, error: "Value " & $val & " is not in allowed enum")
@@ -87,7 +92,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
   if node.kind == JString:
     case node.getStr()
     of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int), enumValues: none(seq[string]), pattern: none(string))
-    of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float), enumValues: none(seq[float]))
+    of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float), multipleOf: none(float), enumValues: none(seq[float]))
     of "boolean": return SchemaValue(kind: SBoolean, enumValues: none(seq[bool]))
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   
@@ -119,6 +124,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
         of "number":
           var minV = none(float)
           var maxV = none(float)
+          var multV = none(float)
           var enumV = none(seq[float])
           if node.hasKey("minimum"):
             let minNode = node["minimum"]
@@ -130,6 +136,11 @@ proc parseSchema(node: JsonNode): SchemaValue =
             if maxNode.kind == JFloat: maxV = some(maxNode.getFloat())
             elif maxNode.kind == JInt: maxV = some(maxNode.getInt().float)
             else: raise newException(ValueError, "'maximum' must be a number")
+          if node.hasKey("multipleOf"):
+            let multNode = node["multipleOf"]
+            if multNode.kind == JFloat: multV = some(multNode.getFloat())
+            elif multNode.kind == JInt: multV = some(multNode.getInt().float)
+            else: raise newException(ValueError, "'multipleOf' must be a number")
           if node.hasKey("enum"):
             let enumNodes = parseEnum(node["enum"], SNumber).get()
             var values: seq[float] = @[]
@@ -138,7 +149,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
               elif e.kind == JInt: values.add(e.getInt().float)
               else: raise newException(ValueError, "Enum values for number type must be numbers")
             enumV = some(values)
-          return SchemaValue(kind: SNumber, minVal: minV, maxVal: maxV, enumValues: enumV)
+          return SchemaValue(kind: SNumber, minVal: minV, maxVal: maxV, multipleOf: multV, enumValues: enumV)
         of "boolean": 
           var enumV = none(seq[bool])
           if node.hasKey("enum"):
