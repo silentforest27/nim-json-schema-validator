@@ -1,11 +1,11 @@
 import std/json
 import src/types, src/validator
 
-# Using the new explicit 'type' format
+# Using the new explicit 'type' format with a default value example
 let schemaJson = parseJson("{
   \"type\": \"object\",
   \"properties\": {
-    \"name\": { \"type\": \"string\" },
+    \"name\": { \"type\": \"string\", \"default\": \"Unknown\" },
     \"age\": { \"type\": \"number\" },
     \"status\": { \"type\": \"string\", \"enum\": [\"active\", \"inactive\", \"pending\"] },
     \"tags\": {

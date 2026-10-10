@@ -168,10 +168,10 @@ proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
 proc parseSchema(node: JsonNode): SchemaValue =
   if node.kind == JString:
     case node.getStr()
-    of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int), enumValues: none(seq[string]), pattern: none(string))
-    of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]))
-    of "integer": return SchemaValue(kind: SInteger, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]))
-    of "boolean": return SchemaValue(kind: SBoolean, enumValues: none(seq[bool]))
+    of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int), enumValues: none(seq[string]), pattern: none(string), defaultValue: none(JsonNode))
+    of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]), defaultValue: none(JsonNode))
+    of "integer": return SchemaValue(kind: SInteger, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]), defaultValue: none(JsonNode))
+    of "boolean": return SchemaValue(kind: SBoolean, enumValues: none(seq[bool]), defaultValue: none(JsonNode))
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   
   elif node.kind == JObject:
@@ -213,6 +213,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
       let typeNode = node["type"]
       if typeNode.kind == JString:
         let typeStr = typeNode.getStr()
+        var defVal = if node.hasKey("default") then some(node["default"]) else none(JsonNode)
         case typeStr
         of "string":
           var minL = none(int)
@@ -232,7 +233,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
             enumV = some(values)
           if node.hasKey("pattern") and node["pattern"].kind == JString:
             pat = some(node["pattern"].getStr())
-          return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV, pattern: pat)
+          return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV, pattern: pat, defaultValue: defVal)
         of "number", "integer":
           let kind = if typeStr == "number" then SNumber else SInteger
           var minV = none(float)
@@ -274,7 +275,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
               elif e.kind == JInt: values.add(e.getInt().float)
               else: raise newException(ValueError, "Enum values for number/integer type must be numbers")
             enumV = some(values)
-          return SchemaValue(kind: kind, minVal: minV, maxVal: maxV, exclusiveMin: exMinV, exclusiveMax: exMaxV, multipleOf: multV, enumValues: enumV)
+          return SchemaValue(kind: kind, minVal: minV, maxVal: maxV, exclusiveMin: exMinV, exclusiveMax: exMaxV, multipleOf: multV, enumValues: enumV, defaultValue: defVal)
         of "boolean": 
           var enumV = none(seq[bool])
           if node.hasKey("enum"):
@@ -284,7 +285,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
               if e.kind == JBool: values.add(e.getBool())
               else: raise newException(ValueError, "Enum values for boolean type must be booleans")
             enumV = some(values)
-          return SchemaValue(kind: SBoolean, enumValues: enumV)
+          return SchemaValue(kind: SBoolean, enumValues: enumV, defaultValue: defVal)
         of "array":
           if node.hasKey("items"):
             var minI = none(int)
@@ -299,7 +300,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
               uniqueI = some(node["uniqueItems"].getBool())
             if node.hasKey("enum"):
               enumV = parseEnum(node["enum"], SArray)
-            return SchemaValue(kind: SArray, items: parseSchema(node["items"]), minItems: minI, maxItems: maxI, uniqueItems: uniqueI, enumValues: enumV)
+            return SchemaValue(kind: SArray, items: parseSchema(node["items"]), minItems: minI, maxItems: maxI, uniqueItems: uniqueI, enumValues: enumV, defaultValue: defVal)
           raise newException(ValueError, "Array schema must define 'items'")
         of "object":
           var props = initTable[string, SchemaValue]()
@@ -366,18 +367,18 @@ proc parseSchema(node: JsonNode): SchemaValue =
             else:
               raise newException(ValueError, "'dependencies' must be an object")
               
-          return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: reqs, additionalProperties: addProps, minProperties: minP, maxProperties: maxP, dependencies: deps)
+          return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: reqs, additionalProperties: addProps, minProperties: minP, maxProperties: maxP, dependencies: deps, defaultValue: defVal)
         else: raise newException(ValueError, "Unknown type: " & typeStr)
 
     # Fallback to the basic heuristic
     var props = initTable[string, SchemaValue]()
     for key, val in node.fields:
       props[key] = parseSchema(val)
-    return SchemaValue(kind: SObject, properties: props, patternProperties: initTable[string, SchemaValue](), required: @[], additionalProperties: none(bool), minProperties: none(int), maxProperties: none(int), dependencies: none(Table[string, seq[string]]))
+    return SchemaValue(kind: SObject, properties: props, patternProperties: initTable[string, SchemaValue](), required: @[], additionalProperties: none(bool), minProperties: none(int), maxProperties: none(int), dependencies: none(Table[string, seq[string]]), defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode))
 
   elif node.kind == JArray:
     if node.len > 0:
-      return SchemaValue(kind: SArray, items: parseSchema(node[0]), minItems: none(int), maxItems: none(int), uniqueItems: none(bool), enumValues: none(seq[JsonNode]))
+      return SchemaValue(kind: SArray, items: parseSchema(node[0]), minItems: none(int), maxItems: none(int), uniqueItems: none(bool), enumValues: none(seq[JsonNode]), defaultValue: none(JsonNode))
     raise newException(ValueError, "Empty array in schema definition")
 
   raise newException(ValueError, "Invalid schema node")
