@@ -12,6 +12,8 @@ type
       enumValues: Option[seq[string]]
       pattern: Option[string]
       defaultValue: Option[JsonNode]
+      readOnly: Option[bool]
+      writeOnly: Option[bool]
     of SNumber:
       minVal: Option[float]
       maxVal: Option[float]
@@ -20,6 +22,8 @@ type
       multipleOf: Option[float]
       enumValues: Option[seq[float]]
       defaultValue: Option[JsonNode]
+      readOnly: Option[bool]
+      writeOnly: Option[bool]
     of SInteger:
       minVal: Option[float]
       maxVal: Option[float]
@@ -28,9 +32,13 @@ type
       multipleOf: Option[float]
       enumValues: Option[seq[float]]
       defaultValue: Option[JsonNode]
+      readOnly: Option[bool]
+      writeOnly: Option[bool]
     of SBoolean: 
       enumValues: Option[seq[bool]]
       defaultValue: Option[JsonNode]
+      readOnly: Option[bool]
+      writeOnly: Option[bool]
     of SObject: 
       properties: Table[string, SchemaValue]
       patternProperties: Table[string, SchemaValue]
@@ -40,6 +48,8 @@ type
       maxProperties: Option[int]
       dependencies: Option[Table[string, seq[string]]]
       defaultValue: Option[JsonNode]
+      readOnly: Option[bool]
+      writeOnly: Option[bool]
     of SArray: 
       items: SchemaValue
       minItems: Option[int]
@@ -47,6 +57,8 @@ type
       uniqueItems: Option[bool]
       enumValues: Option[seq[JsonNode]]
       defaultValue: Option[JsonNode]
+      readOnly: Option[bool]
+      writeOnly: Option[bool]
     of SAnyOf:
       schemas: seq[SchemaValue]
     of SAllOf:
