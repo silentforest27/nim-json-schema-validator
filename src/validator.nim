@@ -148,6 +148,10 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
       if not res.isValid:
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Value must not match the negated schema")
+    of SConst:
+      if data == schema.value:
+        return ValidationResult(isValid: true)
+      return ValidationResult(isValid: false, error: "Value does not match constant " & $schema.value)
 
 proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
   if node.kind == JArray:
@@ -164,6 +168,9 @@ proc parseSchema(node: JsonNode): SchemaValue =
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   
   elif node.kind == JObject:
+    if node.hasKey("const"):
+      return SchemaValue(kind: SConst, value: node["const"])
+
     if node.hasKey("not"):
       let notNode = node["not"]
       return SchemaValue(kind: SNot, schema: parseSchema(notNode))
