@@ -39,6 +39,7 @@ type
       items: SchemaValue
       minItems: Option[int]
       maxItems: Option[int]
+      uniqueItems: Option[bool]
       enumValues: Option[seq[JsonNode]]
     of SAnyOf:
       schemas: seq[SchemaValue]

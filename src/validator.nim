@@ -1,4 +1,4 @@
-import std/[json, tables, options, re, math]
+import std/[json, tables, options, re, math, sets]
 import types
 
 proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
@@ -64,6 +64,13 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
           return ValidationResult(isValid: false, error: "Array length " & $data.len & " is less than minimum " & $schema.minItems.get())
         if schema.maxItems.isSome and data.len > schema.maxItems.get():
           return ValidationResult(isValid: false, error: "Array length " & $data.len & " is greater than maximum " & $schema.maxItems.get())
+
+        if schema.uniqueItems.isSome and schema.uniqueItems.get() == true:
+          var seen: seq[JsonNode] = @[]
+          for item in data:
+            if item in seen:
+              return ValidationResult(isValid: false, error: "Array contains duplicate items")
+            seen.add(item)
 
         for item in data:
           let res = validate(item, schema.items)
@@ -282,14 +289,17 @@ proc parseSchema(node: JsonNode): SchemaValue =
           if node.hasKey("items"):
             var minI = none(int)
             var maxI = none(int)
+            var uniqueI = none(bool)
             var enumV = none(seq[JsonNode])
             if node.hasKey("minItems") and node["minItems"].kind == JInt:
               minI = some(node["minItems"].getInt())
             if node.hasKey("maxItems") and node["maxItems"].kind == JInt:
               maxI = some(node["maxItems"].getInt())
+            if node.hasKey("uniqueItems") and node["uniqueItems"].kind == JBool:
+              uniqueI = some(node["uniqueItems"].getBool())
             if node.hasKey("enum"):
               enumV = parseEnum(node["enum"], SArray)
-            return SchemaValue(kind: SArray, items: parseSchema(node["items"]), minItems: minI, maxItems: maxI, enumValues: enumV)
+            return SchemaValue(kind: SArray, items: parseSchema(node["items"]), minItems: minI, maxItems: maxI, uniqueItems: uniqueI, enumValues: enumV)
           raise newException(ValueError, "Array schema must define 'items'")
         of "object":
           var props = initTable[string, SchemaValue]()
@@ -367,7 +377,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
 
   elif node.kind == JArray:
     if node.len > 0:
-      return SchemaValue(kind: SArray, items: parseSchema(node[0]), minItems: none(int), maxItems: none(int), enumValues: none(seq[JsonNode]))
+      return SchemaValue(kind: SArray, items: parseSchema(node[0]), minItems: none(int), maxItems: none(int), uniqueItems: none(bool), enumValues: none(seq[JsonNode]))
     raise newException(ValueError, "Empty array in schema definition")
 
   raise newException(ValueError, "Invalid schema node")
