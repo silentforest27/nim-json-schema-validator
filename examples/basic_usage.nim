@@ -12,7 +12,8 @@ let schemaJson = parseJson("{
       \"type\": \"array\",
       \"items\": { \"type\": \"string\" },
       \"minItems\": 1,
-      \"maxItems\": 3
+      \"maxItems\": 3,
+      \"uniqueItems\": true
     },
     \"score\": { \"type\": \"number\", \"multipleOf\": 0.5 }
   }
@@ -33,6 +34,9 @@ let ageTooHigh = parseJson("{\"name\": \"Alice\", \"age\": 150, \"status\": \"ac
 # multipleOf tests
 let validScore = parseJson("{\"name\": \"Alice\", \"age\": 20, \"status\": \"active\", \"tags\": [\"test\"], \"score\": 5.0}")
 let invalidScore = parseJson("{\"name\": \"Alice\", \"age\": 20, \"status\": \"active\", \"tags\": [\"test\"], \"score\": 5.2}")
+
+# uniqueItems tests
+let duplicateTagsData = parseJson("{\"name\": \"Eve\", \"age\": 22, \"status\": \"active\", \"tags\": [\"nim\", \"nim\"]}")
 
 let res1 = validate(validData, schema)
  echo "Valid data: ", res1.isValid # true
@@ -63,3 +67,6 @@ let res9 = validate(validScore, schema)
 
 let res10 = validate(invalidScore, schema)
  echo "Invalid score (multipleOf): ", res10.isValid, " Error: ", res10.error
+
+let res11 = validate(duplicateTagsData, schema)
+ echo "Duplicate tags (uniqueItems): ", res11.isValid, " Error: ", res11.error
