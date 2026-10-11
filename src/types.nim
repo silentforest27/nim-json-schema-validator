@@ -51,7 +51,7 @@ type
       readOnly: Option[bool]
       writeOnly: Option[bool]
     of SArray: 
-      items: SchemaValue
+      items: ArrayItems
       minItems: Option[int]
       maxItems: Option[int]
       uniqueItems: Option[bool]
@@ -69,6 +69,14 @@ type
       schema: SchemaValue
     of SConst:
       value: JsonNode
+
+  ArrayItems =
+    case kind: ArrayItemsKind
+    of Single: schema: SchemaValue
+    of Positional: schemas: seq[SchemaValue]
+
+  ArrayItemsKind = enum
+    Single, Positional
 
   ValidationResult =
     object
