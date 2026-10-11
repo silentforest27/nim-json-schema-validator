@@ -13,12 +13,13 @@ let schemaJson = parseJson("{
       \"items\": { \"type\": \"string\" },
       \"minItems\": 1,
       \"maxItems\": 3
-    }
+    },
+    \"score\": { \"type\": \"number\", \"multipleOf\": 0.5 }
   }
 }")
 let schema = parseSchema(schemaJson)
 
-let validData = parseJson("{\"name\": \"Alice\", \"age\": 30, \"status\": \"active\", \"tags\": [\"nim\", \"coding\"]}")
+let validData = parseJson("{\"name\": \"Alice\", \"age\": 30, \"status\": \"active\", \"tags\": [\"nim\", \"coding\"], \"score\": 4.5}")
 let invalidData = parseJson("{\"name\": \"Bob\", \"age\": \"thirty\", \"status\": \"unknown\", \"tags\": [\"rust\"]}")
 let invalidArrayData = parseJson("{\"name\": \"Charlie\", \"age\": 25, \"status\": \"active\", \"tags\": []}")
 let tooManyTagsData = parseJson("{\"name\": \"Dave\", \"age\": 40, \"status\": \"active\", \"tags\": [\"a\", \"b\", \"c\", \"d\"]}")
@@ -28,6 +29,10 @@ let nameTooShort = parseJson("{\"name\": \"A\", \"age\": 20, \"status\": \"activ
 let nameTooLong = parseJson("{\"name\": \"VeryLongNameIndeed\", \"age\": 20, \"status\": \"active\", \"tags\": [\"test\"]}")
 let ageTooLow = parseJson("{\"name\": \"Alice\", \"age\": -1, \"status\": \"active\", \"tags\": [\"test\"]}")
 let ageTooHigh = parseJson("{\"name\": \"Alice\", \"age\": 150, \"status\": \"active\", \"tags\": [\"test\"]}")
+
+# multipleOf tests
+let validScore = parseJson("{\"name\": \"Alice\", \"age\": 20, \"status\": \"active\", \"tags\": [\"test\"], \"score\": 5.0}")
+let invalidScore = parseJson("{\"name\": \"Alice\", \"age\": 20, \"status\": \"active\", \"tags\": [\"test\"], \"score\": 5.2}")
 
 let res1 = validate(validData, schema)
  echo "Valid data: ", res1.isValid # true
@@ -52,3 +57,9 @@ let res7 = validate(ageTooLow, schema)
 
 let res8 = validate(ageTooHigh, schema)
  echo "Age too high: ", res8.isValid, " Error: ", res8.error
+
+let res9 = validate(validScore, schema)
+ echo "Valid score (multipleOf): ", res9.isValid
+
+let res10 = validate(invalidScore, schema)
+ echo "Invalid score (multipleOf): ", res10.isValid, " Error: ", res10.error

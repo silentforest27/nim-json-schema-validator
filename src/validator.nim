@@ -37,8 +37,8 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
           return ValidationResult(isValid: false, error: "Value " & $val & " must be strictly less than " & $schema.exclusiveMax.get())
         if schema.multipleOf.isSome:
           let modVal = schema.multipleOf.get()
-          # Use fmod for float modulo check
-          if abs(fmod(val, modVal)) > 1e-9 and abs(fmod(val, modVal) - modVal) > 1e-9:
+          let remainder = abs(fmod(val, modVal))
+          if remainder > 1e-9 and abs(remainder - modVal) > 1e-9:
             return ValidationResult(isValid: false, error: "Value " & $val & " is not a multiple of " & $modVal)
         if schema.enumValues.isSome:
           if val not in schema.enumValues.get():
