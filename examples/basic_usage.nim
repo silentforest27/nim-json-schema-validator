@@ -5,8 +5,8 @@ import src/types, src/validator
 let schemaJson = parseJson("{
   \"type\": \"object\",
   \"properties\": {
-    \"name\": { \"type\": \"string\", \"default\": \"Unknown\" },
-    \"age\": { \"type\": \"number\" },
+    \"name\": { \"type\": \"string\", \"minLength\": 2, \"maxLength\": 10, \"default\": \"Unknown\" },
+    \"age\": { \"type\": \"number\", \"minimum\": 0, \"maximum\": 120 },
     \"status\": { \"type\": \"string\", \"enum\": [\"active\", \"inactive\", \"pending\"] },
     \"tags\": {
       \"type\": \"array\",
@@ -23,6 +23,12 @@ let invalidData = parseJson("{\"name\": \"Bob\", \"age\": \"thirty\", \"status\"
 let invalidArrayData = parseJson("{\"name\": \"Charlie\", \"age\": 25, \"status\": \"active\", \"tags\": []}")
 let tooManyTagsData = parseJson("{\"name\": \"Dave\", \"age\": 40, \"status\": \"active\", \"tags\": [\"a\", \"b\", \"c\", \"d\"]}")
 
+# Boundary tests
+let nameTooShort = parseJson("{\"name\": \"A\", \"age\": 20, \"status\": \"active\", \"tags\": [\"test\"]}")
+let nameTooLong = parseJson("{\"name\": \"VeryLongNameIndeed\", \"age\": 20, \"status\": \"active\", \"tags\": [\"test\"]}")
+let ageTooLow = parseJson("{\"name\": \"Alice\", \"age\": -1, \"status\": \"active\", \"tags\": [\"test\"]}")
+let ageTooHigh = parseJson("{\"name\": \"Alice\", \"age\": 150, \"status\": \"active\", \"tags\": [\"test\"]}")
+
 let res1 = validate(validData, schema)
  echo "Valid data: ", res1.isValid # true
 
@@ -34,3 +40,15 @@ let res3 = validate(invalidArrayData, schema)
 
 let res4 = validate(tooManyTagsData, schema)
  echo "Invalid array (too long): ", res4.isValid, " Error: ", res4.error # false, Property tags: Array length 4 is greater than maximum 3
+
+let res5 = validate(nameTooShort, schema)
+ echo "Name too short: ", res5.isValid, " Error: ", res5.error
+
+let res6 = validate(nameTooLong, schema)
+ echo "Name too long: ", res6.isValid, " Error: ", res6.error
+
+let res7 = validate(ageTooLow, schema)
+ echo "Age too low: ", res7.isValid, " Error: ", res7.error
+
+let res8 = validate(ageTooHigh, schema)
+ echo "Age too high: ", res8.isValid, " Error: ", res8.error
