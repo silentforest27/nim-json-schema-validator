@@ -211,6 +211,20 @@ proc parseSchema(node: JsonNode): SchemaValue =
 
     if node.hasKey("type"):
       let typeNode = node["type"]
+      
+      # Handle 'type' as an array (multi-type validation)
+      if typeNode.kind == JArray:
+        var schemas: seq[SchemaValue] = @[]
+        for t in typeNode:
+          if t.kind == JString:
+            # Create a basic schema for each type and wrap them in anyOf
+            let basicSchema = parseSchema(JsonNode(kind: JString, val = t.getStr()))
+            schemas.add(basicSchema)
+          else:
+            raise newException(ValueError, "Array elements in 'type' must be strings")
+        # We return an anyOf schema to simulate the OR behavior of multi-type
+        return SchemaValue(kind: SAnyOf, schemas: schemas)
+
       if typeNode.kind == JString:
         let typeStr = typeNode.getStr()
         var defVal = if node.hasKey("default") then some(node["default"]) else none(JsonNode)
@@ -371,6 +385,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
               
           return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: reqs, additionalProperties: addProps, minProperties: minP, maxProperties: maxP, dependencies: deps, defaultValue: defVal, readOnly: ro, writeOnly: wo)
         else: raise newException(ValueError, "Unknown type: " & typeStr)
+    else: raise newException(ValueError, "'type' must be a string or an array of strings")
 
     # Fallback to the basic heuristic
     var props = initTable[string, SchemaValue]()
