@@ -111,3 +111,8 @@ let invalidSchemaDep = parseJson("{\"billing_address\": {\"zip\": 10001}}")
  echo "Valid dependency: ", validate(validDep, depSchema).isValid
  echo "Invalid property dependency: ", validate(invalidPropDep, depSchema).isValid
  echo "Invalid schema dependency: ", validate(invalidSchemaDep, depSchema).isValid
+
+# Const test
+let constSchema = parseSchema(parseJson("{\"const\": 42}"))
+ echo "Valid const: ", validate(parseJson("42"), constSchema).isValid
+ echo "Invalid const: ", validate(parseJson("43"), constSchema).isValid
