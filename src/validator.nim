@@ -213,6 +213,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
       var schemas: seq[SchemaValue] = @[]
       for s in node["oneOf"]: schemas.add(parseSchema(s))
       return SchemaValue(kind: SOneOf, schemas: schemas)
+    
     if node.hasKey("type"):
       let typeNode = node["type"]
       if typeNode.kind == JArray:
@@ -223,97 +224,83 @@ proc parseSchema(node: JsonNode): SchemaValue =
         return SchemaValue(kind: SAnyOf, schemas: schemas)
       if typeNode.kind == JString:
         let typeStr = typeNode.getStr()
-        var defVal = if node.hasKey("default") then some(node["default"]) else none(JsonNode)
-        var ro = if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool)
-        var wo = if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool)
-        case typeStr
-        of "string":
-          var minL = if node.hasKey("minLength") and node["minLength"].kind == JInt then some(node["minLength"].getInt()) else none(int)
-          var maxL = if node.hasKey("maxLength") and node["maxLength"].kind == JInt then some(node["maxLength"].getInt()) else none(int)
-          var enumV = none(seq[string])
-          if node.hasKey("enum"):
-            let enumNodes = parseEnum(node["enum"], SString).get()
-            var values: seq[string] = @[]
-            for e in enumNodes:
-              if e.kind == JString: values.add(e.getStr())
-              else: raise newException(ValueError, "Enum values for string type must be strings")
+        if typeStr != "object":
+          var defVal = if node.hasKey("default") then some(node["default"]) else none(JsonNode)
+          var ro = if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool)
+          var wo = if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool)
+          case typeStr
+          of "string":
+            var minL = if node.hasKey("minLength") and node["minLength"].kind == JInt then some(node["minLength"].getInt()) else none(int)
+            var maxL = if node.hasKey("maxLength") and node["maxLength"].kind == JInt then some(node["maxLength"].getInt()) else none(int)
+            var enumV = none(seq[string])
+            if node.hasKey("enum"):
+              let enumNodes = parseEnum(node["enum"], SString).get()
+              var values: seq[string] = @[]
+              for e in enumNodes:
+                if e.kind == JString: values.add(e.getStr())
+                else: raise newException(ValueError, "Enum values for string type must be strings")
+              enumV = some(values)
+            var pat = if node.hasKey("pattern") and node["pattern"].kind == JString then some(node["pattern"].getStr()) else none(string)
+            var fmt = if node.hasKey("format") and node["format"].kind == JString then some(node["format"].getStr()) else none(string)
+            return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV, pattern: pat, format: fmt, defaultValue: defVal, readOnly: ro, writeOnly: wo)
+          of "number", "integer":
+            let kind = if typeStr == "number" then SNumber else SInteger
+            var minV = none(float)
+            if node.hasKey("minimum"):
+              let n = node["minimum"]
+              if n.kind == JFloat: minV = some(n.getFloat())
+              elif n.kind == JInt: minV = some(n.getInt().float)
+              else: raise newException(ValueError, "'minimum' must be a number")
+            var maxV = none(float)
+            if node.hasKey("maximum"):
+              let n = node["maximum"]
+              if n.kind == JFloat: maxV = some(n.getFloat())
+              elif n.kind == JInt: maxV = some(n.getInt().float)
+              else: raise newException(ValueError, "'maximum' must be a number")
+            var exMinV = none(float)
+            if node.hasKey("exclusiveMinimum"):
+              let n = node["exclusiveMinimum"]
+              if n.kind == JFloat: exMinV = some(n.getFloat())
+              elif n.kind == JInt: exMinV = some(n.getInt().float)
+              else: raise newException(ValueError, "'exclusiveMinimum' must be a number")
+            var exMaxV = none(float)
+            if node.hasKey("exclusiveMaximum"):
+              let n = node["exclusiveMaximum"]
+              if n.kind == JFloat: exMaxV = some(n.getFloat())
+              elif n.kind == JInt: exMaxV = some(n.getInt().float)
+              else: raise newException(ValueError, "'exclusiveMaximum' must be a number")
+            var multV = none(float)
+            if node.hasKey("multipleOf"):
+              let n = node["multipleOf"]
+              if n.kind == JFloat: multV = some(n.getFloat())
+              elif n.kind == JInt: multV = some(n.getInt().float)
+              else: raise newException(ValueError, "'multipleOf' must be a number")
+            var enumV = none(seq[float])
+            if node.hasKey("enum"):
+              let enumNodes = parseEnum(node["enum"], kind).get()
+              var values: seq[float] = @[]
+              for e in enumNodes:
+                if e.kind == JFloat: values.add(e.getFloat())
+                elif e.kind == JInt: values.add(e.getInt().float)
+                else: raise newException(ValueError, "Enum values for number/integer type must be numbers")
+              enumV = some(values)
+            return SchemaValue(kind: kind, minVal: minV, maxVal: maxV, exclusiveMin: exMinV, exclusiveMax: exMaxV, multipleOf: multV, enumValues: enumV, defaultValue: defVal, readOnly: ro, writeOnly: wo)
+          of "boolean": 
+            var enumV = none(seq[bool])
+            if node.hasKey("enum"):
+              let enumNodes = parseEnum(node["enum"], SBoolean).get()
+              var values: seq[bool] = @[]
+              for e in enumNodes:
+                if e.kind == JBool: values.add(e.getBool())
+                else: raise newException(ValueError, "Enum values for boolean type must be booleans")
             enumV = some(values)
-          var pat = if node.hasKey("pattern") and node["pattern"].kind == JString then some(node["pattern"].getStr()) else none(string)
-          var fmt = if node.hasKey("format") and node["format"].kind == JString then some(node["format"].getStr()) else none(string)
-          return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV, pattern: pat, format: fmt, defaultValue: defVal, readOnly: ro, writeOnly: wo)
-        of "number", "integer":
-          let kind = if typeStr == "number" then SNumber else SInteger
-          var minV = none(float)
-          if node.hasKey("minimum"):
-            let n = node["minimum"]
-            if n.kind == JFloat: minV = some(n.getFloat())
-            elif n.kind == JInt: minV = some(n.getInt().float)
-            else: raise newException(ValueError, "'minimum' must be a number")
-          var maxV = none(float)
-          if node.hasKey("maximum"):
-            let n = node["maximum"]
-            if n.kind == JFloat: maxV = some(n.getFloat())
-            elif n.kind == JInt: maxV = some(n.getInt().float)
-            else: raise newException(ValueError, "'maximum' must be a number")
-          var exMinV = none(float)
-          if node.hasKey("exclusiveMinimum"):
-            let n = node["exclusiveMinimum"]
-            if n.kind == JFloat: exMinV = some(n.getFloat())
-            elif n.kind == JInt: exMinV = some(n.getInt().float)
-            else: raise newException(ValueError, "'exclusiveMinimum' must be a number")
-          var exMaxV = none(float)
-          if node.hasKey("exclusiveMaximum"):
-            let n = node["exclusiveMaximum"]
-            if n.kind == JFloat: exMaxV = some(n.getFloat())
-            elif n.kind == JInt: exMaxV = some(n.getInt().float)
-            else: raise newException(ValueError, "'exclusiveMaximum' must be a number")
-          var multV = none(float)
-          if node.hasKey("multipleOf"):
-            let n = node["multipleOf"]
-            if n.kind == JFloat: multV = some(n.getFloat())
-            elif n.kind == JInt: multV = some(n.getInt().float)
-            else: raise newException(ValueError, "'multipleOf' must be a number")
-          var enumV = none(seq[float])
-          if node.hasKey("enum"):
-            let enumNodes = parseEnum(node["enum"], kind).get()
-            var values: seq[float] = @[]
-            for e in enumNodes:
-              if e.kind == JFloat: values.add(e.getFloat())
-              elif e.kind == JInt: values.add(e.getInt().float)
-              else: raise newException(ValueError, "Enum values for number/integer type must be numbers")
-            enumV = some(values)
-          return SchemaValue(kind: kind, minVal: minV, maxVal: maxV, exclusiveMin: exMinV, exclusiveMax: exMaxV, multipleOf: multV, enumValues: enumV, defaultValue: defVal, readOnly: ro, writeOnly: wo)
-        of "boolean": 
-          var enumV = none(seq[bool])
-          if node.hasKey("enum"):
-            let enumNodes = parseEnum(node["enum"], SBoolean).get()
-            var values: seq[bool] = @[]
-            for e in enumNodes:
-              if e.kind == JBool: values.add(e.getBool())
-              else: raise newException(ValueError, "Enum values for boolean type must be booleans")
-            enumV = some(values)
-          return SchemaValue(kind: SBoolean, enumValues: enumV, defaultValue: defVal, readOnly: ro, writeOnly: wo)
-        of "null":
-          return SchemaValue(kind: SNull, defaultValue: defVal, readOnly: ro, writeOnly: wo)
-        of "array":
-          if not node.hasKey("items"): raise newException(ValueError, "Array schema must define 'items'")
-          var minI = if node.hasKey("minItems") and node["minItems"].kind == JInt then some(node["minItems"].getInt()) else none(int)
-          var maxI = if node.hasKey("maxItems") and node["maxItems"].kind == JInt then some(node["maxItems"].getInt()) else none(int)
-          var uniqueI = if node.hasKey("uniqueItems") and node["uniqueItems"].kind == JBool then some(node["uniqueItems"].getBool()) else none(bool)
-          var enumV = if node.hasKey("enum") then parseEnum(node["enum"], SArray) else none(seq[JsonNode])
-          var itemsVal: ArrayItems
-          let itemsNode = node["items"]
-          if itemsNode.kind == JArray:
-            var schemas: seq[SchemaValue] = @[]
-            for s in itemsNode: schemas.add(parseSchema(s))
-            itemsVal = ArrayItems(kind: Positional, schemas: schemas)
-          else:
-            itemsVal = ArrayItems(kind: Single, schema: parseSchema(itemsNode))
-          return SchemaValue(kind: SArray, items: itemsVal, minItems: minI, maxItems: maxI, uniqueItems: uniqueI, enumValues: enumV, defaultValue: defVal, readOnly: ro, writeOnly: wo)
-        else: raise newException(ValueError, "Unknown type: " & typeStr)
+            return SchemaValue(kind: SBoolean, enumValues: enumV, defaultValue: defVal, readOnly: ro, writeOnly: wo)
+          of "null":
+            return SchemaValue(kind: SNull, defaultValue: defVal, readOnly: ro, writeOnly: wo)
+          else: raise newException(ValueError, "Unknown type: " & typeStr)
       else: raise newException(ValueError, "'type' must be a string or an array of strings")
     
-    # Object specific parsing
+    # Object specific parsing (handles both explicit 'type: object' and implicit objects)
     var props = initTable[string, SchemaValue]()
     if node.hasKey("properties"):
       let propsNode = node["properties"]
