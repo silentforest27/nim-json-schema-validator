@@ -53,6 +53,7 @@ type
       writeOnly: Option[bool]
     of SArray: 
       items: ArrayItems
+      additionalItems: Option[SchemaValue]
       minItems: Option[int]
       maxItems: Option[int]
       uniqueItems: Option[bool]

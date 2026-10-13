@@ -95,6 +95,9 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
             if i < schemas.len:
               let res = validate(data[i], schemas[i])
               if not res.isValid: return ValidationResult(isValid: false, error: "Item at index " & $i & ": " & res.error)
+            elif schema.additionalItems.isSome:
+              let res = validate(data[i], schema.additionalItems.get())
+              if not res.isValid: return ValidationResult(isValid: false, error: "Additional item at index " & $i & ": " & res.error)
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected array")
     of SObject:
@@ -351,7 +354,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
 
   elif node.kind == JArray:
     if node.len > 0:
-      return SchemaValue(kind: SArray, items: ArrayItems(kind: Single, schema: parseSchema(node[0])), minItems: none(int), maxItems: none(int), uniqueItems: none(bool), enumValues: none(seq[JsonNode]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
+      return SchemaValue(kind: SArray, items: ArrayItems(kind: Single, schema: parseSchema(node[0])), additionalItems: none(SchemaValue), minItems: none(int), maxItems: none(int), uniqueItems: none(bool), enumValues: none(seq[JsonNode]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
     raise newException(ValueError, "Empty array in schema definition")
 
   raise newException(ValueError, "Invalid schema node")
