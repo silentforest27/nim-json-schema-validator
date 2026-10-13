@@ -70,3 +70,21 @@ let res10 = validate(invalidScore, schema)
 
 let res11 = validate(duplicateTagsData, schema)
  echo "Duplicate tags (uniqueItems): ", res11.isValid, " Error: ", res11.error
+
+# Dependency tests
+let depSchemaJson = parseJson("{
+  \"type\": \"object\",
+  \"dependencies\": {
+    \"credit_card\": { \"required\": [\"billing_address\"] },
+    \"billing_address\": { \"type\": \"object\", \"properties\": { \"city\": { \"type\": \"string\" } }, \"required\": [\"city\"] }
+  }
+}")
+let depSchema = parseSchema(depSchemaJson)
+
+let validDep = parseJson("{\"credit_card\": true, \"billing_address\": {\"city\": \"New York\"}}")
+let invalidPropDep = parseJson("{\"credit_card\": true}")
+let invalidSchemaDep = parseJson("{\"billing_address\": {\"zip\": 10001}}")
+
+ echo "Valid dependency: ", validate(validDep, depSchema).isValid
+ echo "Invalid property dependency: ", validate(invalidPropDep, depSchema).isValid
+ echo "Invalid schema dependency: ", validate(invalidSchemaDep, depSchema).isValid

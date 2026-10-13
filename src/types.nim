@@ -46,7 +46,7 @@ type
       additionalProperties: Option[bool]
       minProperties: Option[int]
       maxProperties: Option[int]
-      dependencies: Option[Table[string, seq[string]]]
+      dependencies: Option[Table[string, Dependency]]
       defaultValue: Option[JsonNode]
       readOnly: Option[bool]
       writeOnly: Option[bool]
@@ -69,6 +69,14 @@ type
       schema: SchemaValue
     of SConst:
       value: JsonNode
+
+  Dependency =
+    case kind: DependencyKind
+    of PropertyDeps: targets: seq[string]
+    of SchemaDep: schema: SchemaValue
+
+  DependencyKind = enum
+    PropertyDeps, SchemaDep
 
   ArrayItems =
     case kind: ArrayItemsKind
