@@ -116,3 +116,10 @@ let invalidSchemaDep = parseJson("{\"billing_address\": {\"zip\": 10001}}")
 let constSchema = parseSchema(parseJson("{\"const\": 42}"))
  echo "Valid const: ", validate(parseJson("42"), constSchema).isValid
  echo "Invalid const: ", validate(parseJson("43"), constSchema).isValid
+
+# Required properties test
+let reqSchema = parseSchema(parseJson("{\"type\": \"object\", \"required\": [\"id\", \"email\"]}"))
+let reqValid = parseJson("{\"id\": 1, \"email\": \"test@test.com\"}")
+let reqInvalid = parseJson("{\"id\": 1}")
+ echo "Required valid: ", validate(reqValid, reqSchema).isValid
+ echo "Required invalid: ", validate(reqInvalid, reqSchema).isValid, " Error: ", validate(reqInvalid, reqSchema).error
