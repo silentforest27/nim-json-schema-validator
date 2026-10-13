@@ -2,7 +2,7 @@ import std/json
 
 type
   SchemaKind = enum
-    SString, SNumber, SInteger, SBoolean, SObject, SArray, SAnyOf, SAllOf, SOneOf, SNot, SConst
+    SString, SNumber, SInteger, SBoolean, SObject, SArray, SAnyOf, SAllOf, SOneOf, SNot, SConst, SNull
 
   SchemaValue =
     case kind: SchemaKind
@@ -70,6 +70,10 @@ type
       schema: SchemaValue
     of SConst:
       value: JsonNode
+    of SNull:
+      defaultValue: Option[JsonNode]
+      readOnly: Option[bool]
+      writeOnly: Option[bool]
 
   Dependency =
     case kind: DependencyKind

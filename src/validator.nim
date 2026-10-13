@@ -174,6 +174,10 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
       if data == schema.value:
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Value does not match constant " & $schema.value)
+    of SNull:
+      if data.kind == JNull:
+        return ValidationResult(isValid: true)
+      return ValidationResult(isValid: false, error: "Expected null")
 
 proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
   if node.kind == JArray:
@@ -187,6 +191,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
     of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
     of "integer": return SchemaValue(kind: SInteger, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
     of "boolean": return SchemaValue(kind: SBoolean, enumValues: none(seq[bool]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
+    of "null": return SchemaValue(kind: SNull, defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   elif node.kind == JObject:
     if node.hasKey("const"):
@@ -288,6 +293,8 @@ proc parseSchema(node: JsonNode): SchemaValue =
               else: raise newException(ValueError, "Enum values for boolean type must be booleans")
             enumV = some(values)
           return SchemaValue(kind: SBoolean, enumValues: enumV, defaultValue: defVal, readOnly: ro, writeOnly: wo)
+        of "null":
+          return SchemaValue(kind: SNull, defaultValue: defVal, readOnly: ro, writeOnly: wo)
         of "array":
           if not node.hasKey("items"): raise newException(ValueError, "Array schema must define 'items'")
           var minI = if node.hasKey("minItems") and node["minItems"].kind == JInt then some(node["minItems"].getInt()) else none(int)

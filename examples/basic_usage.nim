@@ -18,12 +18,13 @@ let schemaJson = parseJson("{
     \"score\": { \"type\": \"number\", \"multipleOf\": 0.5 },
     \"email\": { \"type\": \"string\", \"format\": \"email\" },
     \"created_at\": { \"type\": \"string\", \"format\": \"date-time\" },
-    \"username\": { \"type\": \"string\", \"pattern\": "^[a-z0-9_]+$" }
+    \"username\": { \"type\": \"string\", \"pattern\": "^[a-z0-9_]+$" },
+    \"middle_name\": { \"type\": [\"string\", \"null\"] }
   }
 }")
 let schema = parseSchema(schemaJson)
 
-let validData = parseJson("{\"name\": \"Alice\", \"age\": 30, \"status\": \"active\", \"tags\": [\"nim\", \"coding\"], \"score\": 4.5, \"email\": \"alice@example.com\", \"created_at\": \"2023-10-27T10:00:00Z\", \"username\": \"alice_123\"}")
+let validData = parseJson("{\"name\": \"Alice\", \"age\": 30, \"status\": \"active\", \"tags\": [\"nim\", \"coding\"], \"score\": 4.5, \"email\": \"alice@example.com\", \"created_at\": \"2023-10-27T10:00:00Z\", \"username\": \"alice_123\", \"middle_name\": null}")
 let invalidData = parseJson("{\"name\": \"Bob\", \"age\": \"thirty\", \"status\": \"unknown\", \"tags\": [\"rust\"]}")
 let invalidArrayData = parseJson("{\"name\": \"Charlie\", \"age\": 25, \"status\": \"active\", \"tags\": []}")
 let tooManyTagsData = parseJson("{\"name\": \"Dave\", \"age\": 40, \"status\": \"active\", \"tags\": [\"a\", \"b\", \"c\", \"d\"]}")
@@ -123,3 +124,8 @@ let reqValid = parseJson("{\"id\": 1, \"email\": \"test@test.com\"}")
 let reqInvalid = parseJson("{\"id\": 1}")
  echo "Required valid: ", validate(reqValid, reqSchema).isValid
  echo "Required invalid: ", validate(reqInvalid, reqSchema).isValid, " Error: ", validate(reqInvalid, reqSchema).error
+
+# Null tests
+let nullSchema = parseSchema(parseJson("{\"type\": \"null\"}"))
+ echo "Valid null: ", validate(parseJson("null"), nullSchema).isValid
+ echo "Invalid null: ", validate(parseJson("42"), nullSchema).isValid
