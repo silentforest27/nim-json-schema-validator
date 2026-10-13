@@ -17,12 +17,13 @@ let schemaJson = parseJson("{
     },
     \"score\": { \"type\": \"number\", \"multipleOf\": 0.5 },
     \"email\": { \"type\": \"string\", \"format\": \"email\" },
-    \"created_at\": { \"type\": \"string\", \"format\": \"date-time\" }
+    \"created_at\": { \"type\": \"string\", \"format\": \"date-time\" },
+    \"username\": { \"type\": \"string\", \"pattern\": "^[a-z0-9_]+$" }
   }
 }")
 let schema = parseSchema(schemaJson)
 
-let validData = parseJson("{\"name\": \"Alice\", \"age\": 30, \"status\": \"active\", \"tags\": [\"nim\", \"coding\"], \"score\": 4.5, \"email\": \"alice@example.com\", \"created_at\": \"2023-10-27T10:00:00Z\"}")
+let validData = parseJson("{\"name\": \"Alice\", \"age\": 30, \"status\": \"active\", \"tags\": [\"nim\", \"coding\"], \"score\": 4.5, \"email\": \"alice@example.com\", \"created_at\": \"2023-10-27T10:00:00Z\", \"username\": \"alice_123\"}")
 let invalidData = parseJson("{\"name\": \"Bob\", \"age\": \"thirty\", \"status\": \"unknown\", \"tags\": [\"rust\"]}")
 let invalidArrayData = parseJson("{\"name\": \"Charlie\", \"age\": 25, \"status\": \"active\", \"tags\": []}")
 let tooManyTagsData = parseJson("{\"name\": \"Dave\", \"age\": 40, \"status\": \"active\", \"tags\": [\"a\", \"b\", \"c\", \"d\"]}")
@@ -43,6 +44,10 @@ let duplicateTagsData = parseJson("{\"name\": \"Eve\", \"age\": 22, \"status\": 
 # Format tests
 let invalidEmail = parseJson("{\"email\": \"not-an-email\"}")
 let invalidDate = parseJson("{\"created_at\": \"2023-13-45\"}")
+
+# Pattern tests
+let validUsername = parseJson("{\"username\": \"valid_user123\"}")
+let invalidUsername = parseJson("{\"username\": \"Invalid-User!\"}")
 
 let res1 = validate(validData, schema)
  echo "Valid data: ", res1.isValid # true
@@ -82,6 +87,12 @@ let res12 = validate(invalidEmail, schema)
 
 let res13 = validate(invalidDate, schema)
  echo "Invalid date: ", res13.isValid, " Error: ", res13.error
+
+let res14 = validate(validUsername, schema)
+ echo "Valid username (pattern): ", res14.isValid
+
+let res15 = validate(invalidUsername, schema)
+ echo "Invalid username (pattern): ", res15.isValid, " Error: ", res15.error
 
 # Dependency tests
 let depSchemaJson = parseJson("{
