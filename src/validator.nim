@@ -1,6 +1,20 @@
 import std/[json, tables, options, re, math, sets]
 import types
 
+proc validateFormat(val: string, format: string): bool =
+  case format
+  of "date-time":
+    # Simplified ISO 8601 check
+    return val.contains(pcre(^"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:?\\d{2})?$"))
+  of "email":
+    return val.contains(pcre(^"[\\w\.-]+@[\\w\.-]+\\.[a-zA-Z]{2,}$"))
+  of "ipv4":
+    return val.contains(pcre(^"(\\d{1,3}\\.){3}\\d{1,3}$"))
+  of "ipv6":
+    return val.contains(pcre(^"([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$"))
+  else:
+    return true # Ignore unknown formats
+
 proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
   case schema.kind
     of SString:
@@ -16,6 +30,9 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
         if schema.pattern.isSome:
           if not val.contains(pcre(schema.pattern.get())):
             return ValidationResult(isValid: false, error: "Value " & val & " does not match pattern " & schema.pattern.get())
+        if schema.format.isSome:
+          if not validateFormat(val, schema.format.get()):
+            return ValidationResult(isValid: false, error: "Value " & val & " does not match format " & schema.format.get())
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected string")
     of SNumber, SInteger:
@@ -166,7 +183,7 @@ proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
 proc parseSchema(node: JsonNode): SchemaValue =
   if node.kind == JString:
     case node.getStr()
-    of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int), enumValues: none(seq[string]), pattern: none(string), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
+    of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int), enumValues: none(seq[string]), pattern: none(string), format: none(string), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
     of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
     of "integer": return SchemaValue(kind: SInteger, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
     of "boolean": return SchemaValue(kind: SBoolean, enumValues: none(seq[bool]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
@@ -217,7 +234,8 @@ proc parseSchema(node: JsonNode): SchemaValue =
               else: raise newException(ValueError, "Enum values for string type must be strings")
             enumV = some(values)
           var pat = if node.hasKey("pattern") and node["pattern"].kind == JString then some(node["pattern"].getStr()) else none(string)
-          return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV, pattern: pat, defaultValue: defVal, readOnly: ro, writeOnly: wo)
+          var fmt = if node.hasKey("format") and node["format"].kind == JString then some(node["format"].getStr()) else none(string)
+          return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV, pattern: pat, format: fmt, defaultValue: defVal, readOnly: ro, writeOnly: wo)
         of "number", "integer":
           let kind = if typeStr == "number" then SNumber else SInteger
           var minV = none(float)

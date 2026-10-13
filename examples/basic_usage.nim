@@ -15,12 +15,14 @@ let schemaJson = parseJson("{
       \"maxItems\": 3,
       \"uniqueItems\": true
     },
-    \"score\": { \"type\": \"number\", \"multipleOf\": 0.5 }
+    \"score\": { \"type\": \"number\", \"multipleOf\": 0.5 },
+    \"email\": { \"type\": \"string\", \"format\": \"email\" },
+    \"created_at\": { \"type\": \"string\", \"format\": \"date-time\" }
   }
 }")
 let schema = parseSchema(schemaJson)
 
-let validData = parseJson("{\"name\": \"Alice\", \"age\": 30, \"status\": \"active\", \"tags\": [\"nim\", \"coding\"], \"score\": 4.5}")
+let validData = parseJson("{\"name\": \"Alice\", \"age\": 30, \"status\": \"active\", \"tags\": [\"nim\", \"coding\"], \"score\": 4.5, \"email\": \"alice@example.com\", \"created_at\": \"2023-10-27T10:00:00Z\"}")
 let invalidData = parseJson("{\"name\": \"Bob\", \"age\": \"thirty\", \"status\": \"unknown\", \"tags\": [\"rust\"]}")
 let invalidArrayData = parseJson("{\"name\": \"Charlie\", \"age\": 25, \"status\": \"active\", \"tags\": []}")
 let tooManyTagsData = parseJson("{\"name\": \"Dave\", \"age\": 40, \"status\": \"active\", \"tags\": [\"a\", \"b\", \"c\", \"d\"]}")
@@ -37,6 +39,10 @@ let invalidScore = parseJson("{\"name\": \"Alice\", \"age\": 20, \"status\": \"a
 
 # uniqueItems tests
 let duplicateTagsData = parseJson("{\"name\": \"Eve\", \"age\": 22, \"status\": \"active\", \"tags\": [\"nim\", \"nim\"]}")
+
+# Format tests
+let invalidEmail = parseJson("{\"email\": \"not-an-email\"}")
+let invalidDate = parseJson("{\"created_at\": \"2023-13-45\"}")
 
 let res1 = validate(validData, schema)
  echo "Valid data: ", res1.isValid # true
@@ -70,6 +76,12 @@ let res10 = validate(invalidScore, schema)
 
 let res11 = validate(duplicateTagsData, schema)
  echo "Duplicate tags (uniqueItems): ", res11.isValid, " Error: ", res11.error
+
+let res12 = validate(invalidEmail, schema)
+ echo "Invalid email: ", res12.isValid, " Error: ", res12.error
+
+let res13 = validate(invalidDate, schema)
+ echo "Invalid date: ", res13.isValid, " Error: ", res13.error
 
 # Dependency tests
 let depSchemaJson = parseJson("{

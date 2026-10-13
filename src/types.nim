@@ -11,6 +11,7 @@ type
       maxLength: Option[int]
       enumValues: Option[seq[string]]
       pattern: Option[string]
+      format: Option[string]
       defaultValue: Option[JsonNode]
       readOnly: Option[bool]
       writeOnly: Option[bool]
