@@ -86,9 +86,9 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
             seen.add(item)
         case schema.items.kind
         of Single:
-          for item in data:
+          for i, item in data:
             let res = validate(item, schema.items.schema)
-            if not res.isValid: return res
+            if not res.isValid: return ValidationResult(isValid: false, error: "Item at index " & $i & ": " & res.error)
         of Positional:
           let schemas = schema.items.schemas
           for i in 0 ..< data.len:
