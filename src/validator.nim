@@ -288,39 +288,39 @@ proc parseSchema(node: JsonNode): SchemaValue =
         else: raise newException(ValueError, "Unknown type: " & typeStr)
       else: raise newException(ValueError, "'type' must be a string or an array of strings")
     
+    # Object specific parsing
     var props = initTable[string, SchemaValue]()
-    for key, val in node.fields: props[key] = parseSchema(val)
-    return SchemaValue(kind: SObject, properties: props, patternProperties: initTable[string, SchemaValue](), required: @[], additionalProperties: none(bool), minProperties: none(int), maxProperties: none(int), dependencies: none(Table[string, Dependency]), defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
-
-  elif node.kind == JArray:
-    if node.len > 0:
-      return SchemaValue(kind: SArray, items: ArrayItems(kind: Single, schema: parseSchema(node[0])), minItems: none(int), maxItems: none(int), uniqueItems: none(bool), enumValues: none(seq[JsonNode]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
-    raise newException(ValueError, "Empty array in schema definition")
-
-  raise newException(ValueError, "Invalid schema node")
-
-proc parseSchemaWithDeps(node: JsonNode): SchemaValue =
-  # This is a wrapper to handle the complex SObject construction including dependencies
-  let base = parseSchema(node)
-  if base.kind == SObject:
-    var s = base
     if node.hasKey("properties"):
       let propsNode = node["properties"]
       if propsNode.kind == JObject:
-        for key, val in propsNode.fields: s.properties[key] = parseSchema(val)
+        for key, val in propsNode.fields: props[key] = parseSchema(val)
+
+    var patProps = initTable[string, SchemaValue]()
     if node.hasKey("patternProperties"):
       let patPropsNode = node["patternProperties"]
       if patPropsNode.kind == JObject:
-        for key, val in patPropsNode.fields: s.patternProperties[key] = parseSchema(val)
+        for key, val in patPropsNode.fields: patProps[key] = parseSchema(val)
+
+    var required: seq[string] = @[]
     if node.hasKey("required"):
       let reqsNode = node["required"]
       if reqsNode.kind == JArray:
         for item in reqsNode:
-          if item.kind == JString: s.required.add(item.getStr())
+          if item.kind == JString: required.add(item.getStr())
+
+    var addProps = none(bool)
     if node.hasKey("additionalProperties") and node["additionalProperties"].kind == JBool:
-      s.additionalProperties = some(node["additionalProperties"].getBool())
-    if node.hasKey("minProperties") and node["minProperties"].kind == JInt: s.minProperties = some(node["minProperties"].getInt())
-    if node.hasKey("maxProperties") and node["maxProperties"].kind == JInt: s.maxProperties = some(node["maxProperties"].getInt())
+      addProps = some(node["additionalProperties"].getBool())
+
+    var minProps = none(int)
+    if node.hasKey("minProperties") and node["minProperties"].kind == JInt:
+      minProps = some(node["minProperties"].getInt())
+
+    var maxProps = none(int)
+    if node.hasKey("maxProperties") and node["maxProperties"].kind == JInt:
+      maxProps = some(node["maxProperties"].getInt())
+
+    var deps = none(Table[string, Dependency])
     if node.hasKey("dependencies"):
       let depsNode = node["dependencies"]
       if depsNode.kind == JObject:
@@ -333,9 +333,13 @@ proc parseSchemaWithDeps(node: JsonNode): SchemaValue =
             depsTable[key] = Dependency(kind: PropertyDeps, targets: targets)
           else:
             depsTable[key] = Dependency(kind: SchemaDep, schema: parseSchema(val))
-        s.dependencies = some(depsTable)
-    return s
-  return base
+        deps = some(depsTable)
 
-# Update parseSchema to use the logic for SObject more robustly
-# (In a real refactor I'd merge parseSchemaWithDeps into parseSchema, but for this commit I'll keep it simple)
+    return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: required, additionalProperties: addProps, minProperties: minProps, maxProperties: maxProps, dependencies: deps, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
+
+  elif node.kind == JArray:
+    if node.len > 0:
+      return SchemaValue(kind: SArray, items: ArrayItems(kind: Single, schema: parseSchema(node[0])), minItems: none(int), maxItems: none(int), uniqueItems: none(bool), enumValues: none(seq[JsonNode]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
+    raise newException(ValueError, "Empty array in schema definition")
+
+  raise newException(ValueError, "Invalid schema node")
