@@ -15,6 +15,29 @@ proc validateFormat(val: string, format: string): bool =
   else:
     return true # Ignore unknown formats
 
+proc fillDefaults(data: var JsonNode, schema: SchemaValue) =
+  # Only objects can have properties that might need defaults filled
+  if schema.kind == SObject and data.kind == JObject:
+    for key, sVal in schema.properties:
+      if not data.hasKey(key):
+        if sVal.defaultValue.isSome:
+          data[key] = sVal.defaultValue.get()
+          # Recursively fill defaults for the newly added value if it's an object/array
+          fillDefaults(data[key], sVal)
+  elif schema.kind == SArray and data.kind == JArray:
+    # For arrays, defaults are more complex; usually applied to the items schema
+    case schema.items.kind
+    of Single:
+      for i in 0 ..< data.len:
+        fillDefaults(data[i], schema.items.schema)
+    of Positional:
+      let schemas = schema.items.schemas
+      for i in 0 ..< data.len:
+        if i < schemas.len:
+          fillDefaults(data[i], schemas[i])
+        elif schema.additionalItems.isSome:
+          fillDefaults(data[i], schema.additionalItems.get())
+
 proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
   case schema.kind
     of SString:
