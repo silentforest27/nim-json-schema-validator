@@ -129,3 +129,9 @@ let reqInvalid = parseJson("{\"id\": 1}")
 let nullSchema = parseSchema(parseJson("{\"type\": \"null\"}"))
  echo "Valid null: ", validate(parseJson("null"), nullSchema).isValid
  echo "Invalid null: ", validate(parseJson("42"), nullSchema).isValid
+
+# Exclusive bounds tests
+let exclSchema = parseSchema(parseJson("{\"type\": \"number\", \"exclusiveMinimum\": 10, \"exclusiveMaximum\": 20}"))
+ echo "Exclusive valid (15): ", validate(parseJson("15"), exclSchema).isValid
+ echo "Exclusive invalid (10): ", validate(parseJson("10"), exclSchema).isValid
+ echo "Exclusive invalid (20): ", validate(parseJson("20"), exclSchema).isValid
