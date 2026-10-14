@@ -227,7 +227,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
         return SchemaValue(kind: SAnyOf, schemas: schemas)
       if typeNode.kind == JString:
         let typeStr = typeNode.getStr()
-        if typeStr != "object":
+        if typeStr != "object" and typeStr != "array":
           var defVal = if node.hasKey("default") then some(node["default"]) else none(JsonNode)
           var ro = if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool)
           var wo = if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool)
@@ -303,7 +303,41 @@ proc parseSchema(node: JsonNode): SchemaValue =
           else: raise newException(ValueError, "Unknown type: " & typeStr)
       else: raise newException(ValueError, "'type' must be a string or an array of strings")
     
-    # Object specific parsing (handles both explicit 'type: object' and implicit objects)
+    if node.hasKey("type") and node["type"].kind == JString and node["type"].getStr() == "array":
+      var items = ArrayItems(kind: Single, schema: SchemaValue(kind: SAnyOf, schemas: @[]))
+      if node.hasKey("items"):
+        let itemsNode = node["items"]
+        if itemsNode.kind == JArray:
+          var schemas: seq[SchemaValue] = @[]
+          for s in itemsNode: schemas.add(parseSchema(s))
+          items = ArrayItems(kind: Positional, schemas: schemas)
+        else:
+          items = ArrayItems(kind: Single, schema: parseSchema(itemsNode))
+      
+      var addItems = none(SchemaValue)
+      if node.hasKey("additionalItems"):
+        addItems = some(parseSchema(node["additionalItems"]))
+
+      var minI = none(int)
+      if node.hasKey("minItems") and node["minItems"].kind == JInt:
+        minI = some(node["minItems"].getInt())
+
+      var maxI = none(int)
+      if node.hasKey("maxItems") and node["maxItems"].kind == JInt:
+        maxI = some(node["maxItems"].getInt())
+
+      var uniq = none(bool)
+      if node.hasKey("uniqueItems") and node["uniqueItems"].kind == JBool:
+        uniq = some(node["uniqueItems"].getBool())
+
+      var enumV = none(seq[JsonNode])
+      if node.hasKey("enum"):
+        let enumNodes = parseEnum(node["enum"], SArray).get()
+        enumV = some(enumNodes)
+
+      return SchemaValue(kind: SArray, items: items, additionalItems: addItems, minItems: minI, maxItems: maxI, uniqueItems: uniq, enumValues: enumV, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
+
+    # Object specific parsing
     var props = initTable[string, SchemaValue]()
     if node.hasKey("properties"):
       let propsNode = node["properties"]
@@ -351,10 +385,5 @@ proc parseSchema(node: JsonNode): SchemaValue =
         deps = some(depsTable)
 
     return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: required, additionalProperties: addProps, minProperties: minProps, maxProperties: maxProps, dependencies: deps, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
-
-  elif node.kind == JArray:
-    if node.len > 0:
-      return SchemaValue(kind: SArray, items: ArrayItems(kind: Single, schema: parseSchema(node[0])), additionalItems: none(SchemaValue), minItems: none(int), maxItems: none(int), uniqueItems: none(bool), enumValues: none(seq[JsonNode]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
-    raise newException(ValueError, "Empty array in schema definition")
 
   raise newException(ValueError, "Invalid schema node")
