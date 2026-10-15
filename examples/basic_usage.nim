@@ -135,3 +135,10 @@ let exclSchema = parseSchema(parseJson("{\"type\": \"number\", \"exclusiveMinimu
  echo "Exclusive valid (15): ", validate(parseJson("15"), exclSchema).isValid
  echo "Exclusive invalid (10): ", validate(parseJson("10"), exclSchema).isValid
  echo "Exclusive invalid (20): ", validate(parseJson("20"), exclSchema).isValid
+
+# PropertyNames tests
+let propNamesSchema = parseSchema(parseJson("{\"type\": \"object\", \"propertyNames\": {\"pattern\": "^prop_"}}"))
+let validPropNames = parseJson("{\"prop_1\": 1, \"prop_2\": 2}")
+let invalidPropNames = parseJson("{\"valid_1\": 1}")
+ echo "Valid property names: ", validate(validPropNames, propNamesSchema).isValid
+ echo "Invalid property names: ", validate(invalidPropNames, propNamesSchema).isValid, " Error: ", validate(invalidPropNames, propNamesSchema).error

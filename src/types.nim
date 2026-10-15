@@ -50,6 +50,7 @@ type
       dependencies: Option[Table[string, Dependency]]
       dependentRequired: Option[Table[string, seq[string]]]
       dependentSchemas: Option[Table[string, SchemaValue]]
+      propertyNames: Option[SchemaValue]
       defaultValue: Option[JsonNode]
       readOnly: Option[bool]
       writeOnly: Option[bool]

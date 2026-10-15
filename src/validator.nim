@@ -166,6 +166,12 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
                   break
             if not matched:
               return ValidationResult(isValid: false, error: "Additional property not allowed: " & key)
+        if schema.propertyNames.isSome:
+          let nameSchema = schema.propertyNames.get()
+          for key in data.fields.keys:
+            let res = validate(JsonNode(kind: JString, val = key), nameSchema)
+            if not res.isValid:
+              return ValidationResult(isValid: false, error: "Property name " & key & " is invalid: " & res.error)
         if schema.dependencies.isSome:
           let deps = schema.dependencies.get()
           for trigger, dep in deps:
@@ -467,6 +473,10 @@ proc parseSchema(node: JsonNode): SchemaValue =
         for key, val in dsNode.fields: dsTable[key] = parseSchema(val)
         depSch = some(dsTable)
 
-    return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: required, additionalProperties: addProps, minProperties: minProps, maxProperties: maxProps, dependencies: deps, dependentRequired: depReq, dependentSchemas: depSch, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
+    var propNames = none(SchemaValue)
+    if node.hasKey("propertyNames"):
+      propNames = some(parseSchema(node["propertyNames"]))
+
+    return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: required, additionalProperties: addProps, minProperties: minProps, maxProperties: maxProps, dependencies: deps, dependentRequired: depReq, dependentSchemas: depSch, propertyNames: propNames, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
 
   raise newException(ValueError, "Invalid schema node")
