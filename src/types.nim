@@ -48,6 +48,8 @@ type
       minProperties: Option[int]
       maxProperties: Option[int]
       dependencies: Option[Table[string, Dependency]]
+      dependentRequired: Option[Table[string, seq[string]]]
+      dependentSchemas: Option[Table[string, SchemaValue]]
       defaultValue: Option[JsonNode]
       readOnly: Option[bool]
       writeOnly: Option[bool]

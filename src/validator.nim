@@ -179,6 +179,20 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
                 let res = validate(data, dep.schema)
                 if not res.isValid:
                   return ValidationResult(isValid: false, error: "Dependency schema for " & trigger & " failed: " & res.error)
+        if schema.dependentRequired.isSome:
+          let depReq = schema.dependentRequired.get()
+          for trigger, targets in depReq:
+            if data.hasKey(trigger):
+              for target in targets:
+                if not data.hasKey(target):
+                  return ValidationResult(isValid: false, error: "Property " & trigger & " requires " & target)
+        if schema.dependentSchemas.isSome:
+          let depSch = schema.dependentSchemas.get()
+          for trigger, sVal in depSch:
+            if data.hasKey(trigger):
+              let res = validate(data, sVal)
+              if not res.isValid:
+                return ValidationResult(isValid: false, error: "Dependent schema for " & trigger & " failed: " & res.error)
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected object")
     of SAnyOf:
@@ -417,6 +431,27 @@ proc parseSchema(node: JsonNode): SchemaValue =
             depsTable[key] = Dependency(kind: SchemaDep, schema: parseSchema(val))
         deps = some(depsTable)
 
-    return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: required, additionalProperties: addProps, minProperties: minProps, maxProperties: maxProps, dependencies: deps, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
+    var depReq = none(Table[string, seq[string]])
+    if node.hasKey("dependentRequired"):
+      let drNode = node["dependentRequired"]
+      if drNode.kind == JObject:
+        var drTable = initTable[string, seq[string]]()
+        for key, val in drNode.fields:
+          if val.kind == JArray:
+            var targets: seq[string] = @[]
+            for target in val:
+              if target.kind == JString: targets.add(target.getStr())
+            drTable[key] = targets
+        depReq = some(drTable)
+
+    var depSch = none(Table[string, SchemaValue])
+    if node.hasKey("dependentSchemas"):
+      let dsNode = node["dependentSchemas"]
+      if dsNode.kind == JObject:
+        var dsTable = initTable[string, SchemaValue]()
+        for key, val in dsNode.fields: dsTable[key] = parseSchema(val)
+        depSch = some(dsTable)
+
+    return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: required, additionalProperties: addProps, minProperties: minProps, maxProperties: maxProps, dependencies: deps, dependentRequired: depReq, dependentSchemas: depSch, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
 
   raise newException(ValueError, "Invalid schema node")
