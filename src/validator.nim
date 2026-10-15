@@ -178,7 +178,7 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
               of SchemaDep:
                 let res = validate(data, dep.schema)
                 if not res.isValid:
-                  return ValidationResult(isValid: false, error: "Property " & trigger & " triggers dependency schema validation: " & res.error)
+                  return ValidationResult(isValid: false, error: "Dependency schema for " & trigger & " failed: " & res.error)
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected object")
     of SAnyOf:
