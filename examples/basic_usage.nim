@@ -142,3 +142,9 @@ let validPropNames = parseJson("{\"prop_1\": 1, \"prop_2\": 2}")
 let invalidPropNames = parseJson("{\"valid_1\": 1}")
  echo "Valid property names: ", validate(validPropNames, propNamesSchema).isValid
  echo "Invalid property names: ", validate(invalidPropNames, propNamesSchema).isValid, " Error: ", validate(invalidPropNames, propNamesSchema).error
+
+# Default values test
+let defaultData = parseJson("{\"age\": 25, \"status\": \"active\", \"tags\": [\"test\"]}")
+var mutableData = defaultData
+fillDefaults(mutableData, schema)
+ echo "Filled default name: ", mutableData["name"].getStr() # Expected: Unknown
