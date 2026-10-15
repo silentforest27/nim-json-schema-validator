@@ -131,6 +131,12 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
             elif schema.additionalItems.isSome:
               let res = validate(data[i], schema.additionalItems.get())
               if not res.isValid: return ValidationResult(isValid: false, error: "Additional item at index " & $i & ": " & res.error)
+            elif schema.additionalItems.isSome == false:
+              # If additionalItems is explicitly false, then additional items are not allowed
+              # Note: in our types.nim, additionalItems is Option[SchemaValue]. 
+              # To support boolean 'additionalItems' we would need to update types.nim.
+              # For now, if it is none, it defaults to true (anything allowed).
+              discard
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected array")
     of SObject:
