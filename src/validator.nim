@@ -228,6 +228,16 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
       if data.kind == JNull:
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected null")
+    of SConditional:
+      let ifRes = validate(data, schema.ifSchema)
+      if ifRes.isValid:
+        if schema.thenSchema.isSome:
+          return validate(data, schema.thenSchema.get())
+        return ValidationResult(isValid: true)
+      else:
+        if schema.elseSchema.isSome:
+          return validate(data, schema.elseSchema.get())
+        return ValidationResult(isValid: true)
 
 proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
   if node.kind == JArray:
@@ -244,6 +254,11 @@ proc parseSchema(node: JsonNode): SchemaValue =
     of "null": return SchemaValue(kind: SNull, defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   elif node.kind == JObject:
+    if node.hasKey("if"):
+      var ifS = parseSchema(node["if"])
+      var thenS = if node.hasKey("then") then some(parseSchema(node["then"])) else none(SchemaValue)
+      var elseS = if node.hasKey("else") then some(parseSchema(node["else"])) else none(SchemaValue)
+      return SchemaValue(kind: SConditional, ifSchema: ifS, thenSchema: thenS, elseSchema: elseS)
     if node.hasKey("const"):
       return SchemaValue(kind: SConst, value: node["const"])
     if node.hasKey("not"):
