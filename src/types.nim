@@ -44,7 +44,7 @@ type
       properties: Table[string, SchemaValue]
       patternProperties: Table[string, SchemaValue]
       required: seq[string]
-      additionalProperties: Option[bool]
+      additionalProperties: Option[AdditionalProperties]
       minProperties: Option[int]
       maxProperties: Option[int]
       dependencies: Option[Table[string, Dependency]]
@@ -82,6 +82,14 @@ type
       ifSchema: SchemaValue
       thenSchema: Option[SchemaValue]
       elseSchema: Option[SchemaValue]
+
+  AdditionalProperties =
+    case kind: AdditionalPropertiesKind
+    of BoolProp: value: bool
+    of SchemaProp: schema: SchemaValue
+
+  AdditionalPropertiesKind = enum
+    BoolProp, SchemaProp
 
   Dependency =
     case kind: DependencyKind

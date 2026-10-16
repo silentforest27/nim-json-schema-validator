@@ -160,7 +160,8 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
               let res = validate(val, sVal)
               if not res.isValid:
                 return ValidationResult(isValid: false, error: "Property " & key & " (matched by " & pattern & "): " & res.error)
-        if schema.additionalProperties.isSome and schema.additionalProperties.get() == false:
+        if schema.additionalProperties.isSome:
+          let addProps = schema.additionalProperties.get()
           for key in data.fields.keys:
             var matched = false
             if schema.properties.hasKey(key):
@@ -171,7 +172,14 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
                   matched = true
                   break
             if not matched:
-              return ValidationResult(isValid: false, error: "Additional property not allowed: " & key)
+              case addProps.kind
+              of BoolProp:
+                if addProps.value == false:
+                  return ValidationResult(isValid: false, error: "Additional property not allowed: " & key)
+              of SchemaProp:
+                let res = validate(data[key], addProps.schema)
+                if not res.isValid:
+                  return ValidationResult(isValid: false, error: "Additional property " & key & " is invalid: " & res.error)
         if schema.propertyNames.isSome:
           let nameSchema = schema.propertyNames.get()
           for key in data.fields.keys:
@@ -431,9 +439,13 @@ proc parseSchema(node: JsonNode): SchemaValue =
         for item in reqsNode:
           if item.kind == JString: required.add(item.getStr())
 
-    var addProps = none(bool)
-    if node.hasKey("additionalProperties") and node["additionalProperties"].kind == JBool:
-      addProps = some(node["additionalProperties"].getBool())
+    var addProps = none(AdditionalProperties)
+    if node.hasKey("additionalProperties"):
+      let apNode = node["additionalProperties"]
+      if apNode.kind == JBool:
+        addProps = some(AdditionalProperties(kind: BoolProp, value: apNode.getBool()))
+      else:
+        addProps = some(AdditionalProperties(kind: SchemaProp, schema: parseSchema(apNode)))
 
     var minProps = none(int)
     if node.hasKey("minProperties") and node["minProperties"].kind == JInt:
