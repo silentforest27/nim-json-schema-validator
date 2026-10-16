@@ -40,6 +40,14 @@ proc fillDefaults(data: var JsonNode, schema: SchemaValue) =
     else: discard
 
 proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
+  if data.kind == JNull:
+    case schema.kind
+    of SString, SNumber, SInteger, SBoolean, SObject, SArray:
+      if schema.nullable.isSome and schema.nullable.get() == true: return ValidationResult(isValid: true)
+      return ValidationResult(isValid: false, error: "Expected " & $schema.kind & " but got null")
+    of SNull: return ValidationResult(isValid: true)
+    else: discard
+
   case schema.kind
     of SString:
       if data.kind == JString:
@@ -224,10 +232,10 @@ proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
 proc parseSchema(node: JsonNode): SchemaValue =
   if node.kind == JString:
     case node.getStr()
-    of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int), enumValues: none(seq[string]), pattern: none(string), format: none(string), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
-    of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
-    of "integer": return SchemaValue(kind: SInteger, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
-    of "boolean": return SchemaValue(kind: SBoolean, enumValues: none(seq[bool]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
+    of "string": return SchemaValue(kind: SString, minLength: none(int), maxLength: none(int), enumValues: none(seq[string]), pattern: none(string), format: none(string), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool), nullable: none(bool))
+    of "number": return SchemaValue(kind: SNumber, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool), nullable: none(bool))
+    of "integer": return SchemaValue(kind: SInteger, minVal: none(float), maxVal: none(float), exclusiveMin: none(float), exclusiveMax: none(float), multipleOf: none(float), enumValues: none(seq[float]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool), nullable: none(bool))
+    of "boolean": return SchemaValue(kind: SBoolean, enumValues: none(seq[bool]), defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool), nullable: none(bool))
     of "null": return SchemaValue(kind: SNull, defaultValue: none(JsonNode), readOnly: none(bool), writeOnly: none(bool))
     else: raise newException(ValueError, "Unknown type: " & node.getStr())
   elif node.kind == JObject:
@@ -268,6 +276,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
           var defVal = if node.hasKey("default") then some(node["default"]) else none(JsonNode)
           var ro = if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool)
           var wo = if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool)
+          var nul = if node.hasKey("nullable") and node["nullable"].kind == JBool then some(node["nullable"].getBool()) else none(bool)
           case typeStr
           of "string":
             var minL = if node.hasKey("minLength") and node["minLength"].kind == JInt then some(node["minLength"].getInt()) else none(int)
@@ -282,7 +291,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
               enumV = some(values)
             var pat = if node.hasKey("pattern") and node["pattern"].kind == JString then some(node["pattern"].getStr()) else none(string)
             var fmt = if node.hasKey("format") and node["format"].kind == JString then some(node["format"].getStr()) else none(string)
-            return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV, pattern: pat, format: fmt, defaultValue: defVal, readOnly: ro, writeOnly: wo)
+            return SchemaValue(kind: SString, minLength: minL, maxLength: maxL, enumValues: enumV, pattern: pat, format: fmt, defaultValue: defVal, readOnly: ro, writeOnly: wo, nullable: nul)
           of "number", "integer":
             let kind = if typeStr == "number" then SNumber else SInteger
             var minV = none(float)
@@ -324,7 +333,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
                 elif e.kind == JInt: values.add(e.getInt().float)
                 else: raise newException(ValueError, "Enum values for number/integer type must be numbers")
               enumV = some(values)
-            return SchemaValue(kind: kind, minVal: minV, maxVal: maxV, exclusiveMin: exMinV, exclusiveMax: exMaxV, multipleOf: multV, enumValues: enumV, defaultValue: defVal, readOnly: ro, writeOnly: wo)
+            return SchemaValue(kind: kind, minVal: minV, maxVal: maxV, exclusiveMin: exMinV, exclusiveMax: exMaxV, multipleOf: multV, enumValues: enumV, defaultValue: defVal, readOnly: ro, writeOnly: wo, nullable: nul)
           of "boolean": 
             var enumV = none(seq[bool])
             if node.hasKey("enum"):
@@ -334,7 +343,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
                 if e.kind == JBool: values.add(e.getBool())
                 else: raise newException(ValueError, "Enum values for boolean type must be booleans")
             enumV = some(values)
-            return SchemaValue(kind: SBoolean, enumValues: enumV, defaultValue: defVal, readOnly: ro, writeOnly: wo)
+            return SchemaValue(kind: SBoolean, enumValues: enumV, defaultValue: defVal, readOnly: ro, writeOnly: wo, nullable: nul)
           of "null":
             return SchemaValue(kind: SNull, defaultValue: defVal, readOnly: ro, writeOnly: wo)
           else: raise newException(ValueError, "Unknown type: " & typeStr)
@@ -372,7 +381,7 @@ proc parseSchema(node: JsonNode): SchemaValue =
         let enumNodes = parseEnum(node["enum"], SArray).get()
         enumV = some(enumNodes)
 
-      return SchemaValue(kind: SArray, items: items, additionalItems: addItems, minItems: minI, maxItems: maxI, uniqueItems: uniq, enumValues: enumV, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
+      return SchemaValue(kind: SArray, items: items, additionalItems: addItems, minItems: minI, maxItems: maxI, uniqueItems: uniq, enumValues: enumV, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool), nullable: if node.hasKey("nullable") and node["nullable"].kind == JBool then some(node["nullable"].getBool()) else none(bool))
 
     var props = initTable[string, SchemaValue]()
     if node.hasKey("properties"):
@@ -453,6 +462,6 @@ proc parseSchema(node: JsonNode): SchemaValue =
     if node.hasKey("enum"):
       enumV = parseEnum(node["enum"], SObject).get()
 
-    return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: required, additionalProperties: addProps, minProperties: minProps, maxProperties: maxProps, dependencies: deps, dependentRequired: depReq, dependentSchemas: depSch, propertyNames: propNames, enumValues: enumV, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
+    return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: required, additionalProperties: addProps, minProperties: minProps, maxProperties: maxProps, dependencies: deps, dependentRequired: depReq, dependentSchemas: depSch, propertyNames: propNames, enumValues: enumV, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool), nullable: if node.hasKey("nullable") and node["nullable"].kind == JBool then some(node["nullable"].getBool()) else none(bool))
 
   raise newException(ValueError, "Invalid schema node")

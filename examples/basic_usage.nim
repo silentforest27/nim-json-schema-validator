@@ -148,3 +148,11 @@ let defaultData = parseJson("{\"age\": 25, \"status\": \"active\", \"tags\": [\"
 var mutableData = defaultData
 fillDefaults(mutableData, schema)
  echo "Filled default name: ", mutableData["name"].getStr() # Expected: Unknown
+
+# Nullable test
+let nullableSchema = parseSchema(parseJson("{\"type\": \"string\", \"nullable\": true}"))
+ echo "Nullable valid (string): ", validate(parseJson("hello"), nullableSchema).isValid
+ echo "Nullable valid (null): ", validate(parseJson("null"), nullableSchema).isValid
+
+let nonNullableSchema = parseSchema(parseJson("{\"type\": \"string\", \"nullable\": false}"))
+ echo "Non-nullable invalid (null): ", validate(parseJson("null"), nonNullableSchema).isValid
