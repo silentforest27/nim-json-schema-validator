@@ -51,6 +51,7 @@ type
       dependentRequired: Option[Table[string, seq[string]]]
       dependentSchemas: Option[Table[string, SchemaValue]]
       propertyNames: Option[SchemaValue]
+      enumValues: Option[seq[JsonNode]]
       defaultValue: Option[JsonNode]
       readOnly: Option[bool]
       writeOnly: Option[bool]

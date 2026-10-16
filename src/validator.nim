@@ -4,7 +4,6 @@ import types
 proc validateFormat(val: string, format: string): bool =
   case format
   of "date-time":
-    # Simplified ISO 8601 check
     return val.contains(pcre(^"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:?\\d{2})?$"))
   of "email":
     return val.contains(pcre(^"[\\w\.-]+@[\\w\.-]+\\.[a-zA-Z]{2,}$"))
@@ -13,40 +12,32 @@ proc validateFormat(val: string, format: string): bool =
   of "ipv6":
     return val.contains(pcre(^"([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$"))
   else:
-    return true # Ignore unknown formats
+    return true
 
 proc fillDefaults(data: var JsonNode, schema: SchemaValue) =
   case schema.kind
     of SObject:
-      if data.kind != JObject:
-        return
+      if data.kind != JObject: return
       for key, sVal in schema.properties:
         if not data.hasKey(key):
           if sVal.defaultValue.isSome:
             let def = sVal.defaultValue.get()
             data[key] = def
-            # Recursively fill defaults for the newly added value
             fillDefaults(data[key], sVal)
         elif data[key].kind == JObject or data[key].kind == JArray:
-          # Recurse into existing object/array properties
           fillDefaults(data[key], sVal)
     of SArray:
-      if data.kind != JArray:
-        return
+      if data.kind != JArray: return
       case schema.items.kind
       of Single:
         let itemSchema = schema.items.schema
-        for i in 0 ..< data.len:
-          fillDefaults(data[i], itemSchema)
+        for i in 0 ..< data.len: fillDefaults(data[i], itemSchema)
       of Positional:
         let schemas = schema.items.schemas
         for i in 0 ..< data.len:
-          if i < schemas.len:
-            fillDefaults(data[i], schemas[i])
-          elif schema.additionalItems.isSome:
-            fillDefaults(data[i], schema.additionalItems.get())
-    else:
-      discard
+          if i < schemas.len: fillDefaults(data[i], schemas[i])
+          elif schema.additionalItems.isSome: fillDefaults(data[i], schema.additionalItems.get())
+    else: discard
 
 proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
   case schema.kind
@@ -57,24 +48,19 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
           return ValidationResult(isValid: false, error: "String length " & $val.len & " is less than minimum " & $schema.minLength.get())
         if schema.maxLength.isSome and val.len > schema.maxLength.get():
           return ValidationResult(isValid: false, error: "String length " & $val.len & " is greater than maximum " & $schema.maxLength.get())
-        if schema.enumValues.isSome:
-          if val not in schema.enumValues.get():
-            return ValidationResult(isValid: false, error: "Value " & val & " is not in allowed enum")
-        if schema.pattern.isSome:
-          if not val.contains(pcre(schema.pattern.get())):
-            return ValidationResult(isValid: false, error: "Value " & val & " does not match pattern " & schema.pattern.get())
-        if schema.format.isSome:
-          if not validateFormat(val, schema.format.get()):
-            return ValidationResult(isValid: false, error: "Value " & val & " does not match format " & schema.format.get())
+        if schema.enumValues.isSome and val not in schema.enumValues.get():
+          return ValidationResult(isValid: false, error: "Value " & val & " is not in allowed enum")
+        if schema.pattern.isSome and not val.contains(pcre(schema.pattern.get())):
+          return ValidationResult(isValid: false, error: "Value " & val & " does not match pattern " & schema.pattern.get())
+        if schema.format.isSome and not validateFormat(val, schema.format.get()):
+          return ValidationResult(isValid: false, error: "Value " & val & " does not match format " & schema.format.get())
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected string")
     of SNumber, SInteger:
       if data.kind == JFloat or data.kind == JInt:
         if schema.kind == SInteger and data.kind == JFloat:
           let val = data.getFloat()
-          if val != floor(val):
-            return ValidationResult(isValid: false, error: "Expected integer")
-
+          if val != floor(val): return ValidationResult(isValid: false, error: "Expected integer")
         let val = data.getFloat()
         if schema.minVal.isSome and val < schema.minVal.get():
           return ValidationResult(isValid: false, error: "Value " & $val & " is less than minimum " & $schema.minVal.get())
@@ -89,24 +75,21 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
           let remainder = abs(fmod(val, modVal))
           if remainder > 1e-9 and abs(remainder - modVal) > 1e-9:
             return ValidationResult(isValid: false, error: "Value " & $val & " is not a multiple of " & $modVal)
-        if schema.enumValues.isSome:
-          if val not in schema.enumValues.get():
-            return ValidationResult(isValid: false, error: "Value " & $val & " is not in allowed enum")
+        if schema.enumValues.isSome and val not in schema.enumValues.get():
+          return ValidationResult(isValid: false, error: "Value " & $val & " is not in allowed enum")
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: if schema.kind == SInteger then "Expected integer" else "Expected number")
     of SBoolean:
       if data.kind == JBool:
         let val = data.getBool()
-        if schema.enumValues.isSome:
-          if val not in schema.enumValues.get():
-            return ValidationResult(isValid: false, error: "Value " & $val & " is not in allowed enum")
+        if schema.enumValues.isSome and val not in schema.enumValues.get():
+          return ValidationResult(isValid: false, error: "Value " & $val & " is not in allowed enum")
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected boolean")
     of SArray:
       if data.kind == JArray:
-        if schema.enumValues.isSome:
-          if data not in schema.enumValues.get():
-            return ValidationResult(isValid: false, error: "Array value is not in allowed enum")
+        if schema.enumValues.isSome and data not in schema.enumValues.get():
+          return ValidationResult(isValid: false, error: "Array value is not in allowed enum")
         if schema.minItems.isSome and data.len < schema.minItems.get():
           return ValidationResult(isValid: false, error: "Array length " & $data.len & " is less than minimum " & $schema.minItems.get())
         if schema.maxItems.isSome and data.len > schema.maxItems.get():
@@ -114,8 +97,7 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
         if schema.uniqueItems.isSome and schema.uniqueItems.get() == true:
           var seen: seq[JsonNode] = @[]
           for item in data:
-            if item in seen:
-              return ValidationResult(isValid: false, error: "Array contains duplicate items")
+            if item in seen: return ValidationResult(isValid: false, error: "Array contains duplicate items")
             seen.add(item)
         case schema.items.kind
         of Single:
@@ -131,12 +113,6 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
             elif schema.additionalItems.isSome:
               let res = validate(data[i], schema.additionalItems.get())
               if not res.isValid: return ValidationResult(isValid: false, error: "Additional item at index " & $i & ": " & res.error)
-            elif schema.additionalItems.isSome == false:
-              # If additionalItems is explicitly false, then additional items are not allowed
-              # Note: in our types.nim, additionalItems is Option[SchemaValue]. 
-              # To support boolean 'additionalItems' we would need to update types.nim.
-              # For now, if it is none, it defaults to true (anything allowed).
-              discard
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected array")
     of SObject:
@@ -147,45 +123,36 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
         if schema.maxProperties.isSome and propCount > schema.maxProperties.get():
           return ValidationResult(isValid: false, error: "Object has " & $propCount & " properties, which is greater than maximum " & $schema.maxProperties.get())
         for req in schema.required:
-          if not data.hasKey(req):
-            return ValidationResult(isValid: false, error: "Missing required property: " & req)
+          if not data.hasKey(req): return ValidationResult(isValid: false, error: "Missing required property: " & req)
         for key, sVal in schema.properties:
           if data.hasKey(key):
             let res = validate(data[key], sVal)
-            if not res.isValid:
-              return ValidationResult(isValid: false, error: "Property " & key & ": " & res.error)
+            if not res.isValid: return ValidationResult(isValid: false, error: "Property " & key & ": " & res.error)
         for pattern, sVal in schema.patternProperties:
           for key, val in data.fields:
             if key.contains(pcre(pattern)):
               let res = validate(val, sVal)
-              if not res.isValid:
-                return ValidationResult(isValid: false, error: "Property " & key & " (matched by " & pattern & "): " & res.error)
+              if not res.isValid: return ValidationResult(isValid: false, error: "Property " & key & " (matched by " & pattern & "): " & res.error)
         if schema.additionalProperties.isSome:
           let addProps = schema.additionalProperties.get()
           for key in data.fields.keys:
             var matched = false
-            if schema.properties.hasKey(key):
-              matched = true
+            if schema.properties.hasKey(key): matched = true
             else:
               for pattern in schema.patternProperties.keys:
-                if key.contains(pcre(pattern)):
-                  matched = true
-                  break
+                if key.contains(pcre(pattern)): matched = true; break
             if not matched:
               case addProps.kind
               of BoolProp:
-                if addProps.value == false:
-                  return ValidationResult(isValid: false, error: "Additional property not allowed: " & key)
+                if addProps.value == false: return ValidationResult(isValid: false, error: "Additional property not allowed: " & key)
               of SchemaProp:
                 let res = validate(data[key], addProps.schema)
-                if not res.isValid:
-                  return ValidationResult(isValid: false, error: "Additional property " & key & " is invalid: " & res.error)
+                if not res.isValid: return ValidationResult(isValid: false, error: "Additional property " & key & " is invalid: " & res.error)
         if schema.propertyNames.isSome:
           let nameSchema = schema.propertyNames.get()
           for key in data.fields.keys:
             let res = validate(JsonNode(kind: JString, val = key), nameSchema)
-            if not res.isValid:
-              return ValidationResult(isValid: false, error: "Property name " & key & " is invalid: " & res.error)
+            if not res.isValid: return ValidationResult(isValid: false, error: "Property name " & key & " is invalid: " & res.error)
         if schema.dependencies.isSome:
           let deps = schema.dependencies.get()
           for trigger, dep in deps:
@@ -193,26 +160,24 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
               case dep.kind
               of PropertyDeps:
                 for target in dep.targets:
-                  if not data.hasKey(target):
-                    return ValidationResult(isValid: false, error: "Property " & trigger & " depends on " & target & " which is missing")
+                  if not data.hasKey(target): return ValidationResult(isValid: false, error: "Property " & trigger & " depends on " & target & " which is missing")
               of SchemaDep:
                 let res = validate(data, dep.schema)
-                if not res.isValid:
-                  return ValidationResult(isValid: false, error: "Dependency schema for " & trigger & " failed: " & res.error)
+                if not res.isValid: return ValidationResult(isValid: false, error: "Dependency schema for " & trigger & " failed: " & res.error)
         if schema.dependentRequired.isSome:
           let depReq = schema.dependentRequired.get()
           for trigger, targets in depReq:
             if data.hasKey(trigger):
               for target in targets:
-                if not data.hasKey(target):
-                  return ValidationResult(isValid: false, error: "Property " & trigger & " requires " & target)
+                if not data.hasKey(target): return ValidationResult(isValid: false, error: "Property " & trigger & " requires " & target)
         if schema.dependentSchemas.isSome:
           let depSch = schema.dependentSchemas.get()
           for trigger, sVal in depSch:
             if data.hasKey(trigger):
               let res = validate(data, sVal)
-              if not res.isValid:
-                return ValidationResult(isValid: false, error: "Dependent schema for " & trigger & " failed: " & res.error)
+              if not res.isValid: return ValidationResult(isValid: false, error: "Dependent schema for " & trigger & " failed: " & res.error)
+        if schema.enumValues.isSome and data not in schema.enumValues.get():
+          return ValidationResult(isValid: false, error: "Object value is not in allowed enum")
         return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected object")
     of SAnyOf:
@@ -230,38 +195,30 @@ proc validate(data: JsonNode, schema: SchemaValue): ValidationResult =
     of SOneOf:
       var matches = 0
       for s in schema.schemas:
-        if validate(data, s).isValid:
-          matches += 1
-      if matches == 1:
-        return ValidationResult(isValid: true)
+        if validate(data, s).isValid: matches += 1
+      if matches == 1: return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Value must match exactly one schema in oneOf, but matched " & $matches)
     of SNot:
       let res = validate(data, schema.schema)
-      if not res.isValid:
-        return ValidationResult(isValid: true)
+      if not res.isValid: return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Value must not match the negated schema")
     of SConst:
-      if data == schema.value:
-        return ValidationResult(isValid: true)
+      if data == schema.value: return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Value does not match constant " & $schema.value)
     of SNull:
-      if data.kind == JNull:
-        return ValidationResult(isValid: true)
+      if data.kind == JNull: return ValidationResult(isValid: true)
       return ValidationResult(isValid: false, error: "Expected null")
     of SConditional:
       let ifRes = validate(data, schema.ifSchema)
       if ifRes.isValid:
-        if schema.thenSchema.isSome:
-          return validate(data, schema.thenSchema.get())
+        if schema.thenSchema.isSome: return validate(data, schema.thenSchema.get())
         return ValidationResult(isValid: true)
       else:
-        if schema.elseSchema.isSome:
-          return validate(data, schema.elseSchema.get())
+        if schema.elseSchema.isSome: return validate(data, schema.elseSchema.get())
         return ValidationResult(isValid: true)
 
 proc parseEnum(node: JsonNode, kind: SchemaKind): Option[seq[JsonNode]] =
-  if node.kind == JArray:
-    return some(node)
+  if node.kind == JArray: return some(node)
   raise newException(ValueError, "'enum' must be an array")
 
 proc parseSchema(node: JsonNode): SchemaValue =
@@ -279,10 +236,8 @@ proc parseSchema(node: JsonNode): SchemaValue =
       var thenS = if node.hasKey("then") then some(parseSchema(node["then"])) else none(SchemaValue)
       var elseS = if node.hasKey("else") then some(parseSchema(node["else"])) else none(SchemaValue)
       return SchemaValue(kind: SConditional, ifSchema: ifS, thenSchema: thenS, elseSchema: elseS)
-    if node.hasKey("const"):
-      return SchemaValue(kind: SConst, value: node["const"])
-    if node.hasKey("not"):
-      return SchemaValue(kind: SNot, schema: parseSchema(node["not"]))
+    if node.hasKey("const"): return SchemaValue(kind: SConst, value: node["const"])
+    if node.hasKey("not"): return SchemaValue(kind: SNot, schema: parseSchema(node["not"]))
     if node.hasKey("anyOf"):
       if node["anyOf"].kind != JArray: raise newException(ValueError, "'anyOf' must be an array")
       var schemas: seq[SchemaValue] = @[]
@@ -419,7 +374,6 @@ proc parseSchema(node: JsonNode): SchemaValue =
 
       return SchemaValue(kind: SArray, items: items, additionalItems: addItems, minItems: minI, maxItems: maxI, uniqueItems: uniq, enumValues: enumV, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
 
-    # Object specific parsing
     var props = initTable[string, SchemaValue]()
     if node.hasKey("properties"):
       let propsNode = node["properties"]
@@ -495,6 +449,10 @@ proc parseSchema(node: JsonNode): SchemaValue =
     if node.hasKey("propertyNames"):
       propNames = some(parseSchema(node["propertyNames"]))
 
-    return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: required, additionalProperties: addProps, minProperties: minProps, maxProperties: maxProps, dependencies: deps, dependentRequired: depReq, dependentSchemas: depSch, propertyNames: propNames, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
+    var enumV = none(seq[JsonNode])
+    if node.hasKey("enum"):
+      enumV = parseEnum(node["enum"], SObject).get()
+
+    return SchemaValue(kind: SObject, properties: props, patternProperties: patProps, required: required, additionalProperties: addProps, minProperties: minProps, maxProperties: maxProps, dependencies: deps, dependentRequired: depReq, dependentSchemas: depSch, propertyNames: propNames, enumValues: enumV, defaultValue: if node.hasKey("default") then some(node["default"]) else none(JsonNode), readOnly: if node.hasKey("readOnly") and node["readOnly"].kind == JBool then some(node["readOnly"].getBool()) else none(bool), writeOnly: if node.hasKey("writeOnly") and node["writeOnly"].kind == JBool then some(node["writeOnly"].getBool()) else none(bool))
 
   raise newException(ValueError, "Invalid schema node")
